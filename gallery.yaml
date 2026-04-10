@@ -1,0 +1,32 @@
+---
+# Members of your group.
+group:  
+  - name: Hayden Fu
+    netid: hmf63
+  - name: Jarmin Weng
+    netid: jw2877
+  - name: Ryan Cheung
+    netid: rec324
+  - name: Sahas Goli
+    netid: sg2636
+
+# Your PM.
+pm:
+  name: Andrew Da
+  netid: ad2268
+# Set to false if you don't want your gallery entry to be public.
+publish: true
+# Pitchy title
+title: "Camel Chess: An Exciting Update to a Timeless Classic"
+# OK if this is a Cornell Github link, but public gallery viewers won't be able to see it.
+git-repo: "https://github.com/Sahas266/CS3110-Team-Project"
+# Replace the URL with your own demo video.
+demo-video-url: "N/A"
+# Write a short, attention-grabbing description of your project.
+desc: >
+  Our project is an expansion on the game of chess. Instead of the 
+  classic 16 pieces, we have added a new piece: the camel. The camel 
+  is immortal and cannot be captured by either side, and at the end 
+  of each turn the camel must be moved to a new square on the chessboard. 
+  Players can use the camel to obstruct their opponents and create new 
+  tactics that have never been seen before! 

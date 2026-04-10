@@ -1,0 +1,4 @@
+(test
+ (name test_camel_chess)
+ (libraries ounit2 camel_chess))
+
