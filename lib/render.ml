@@ -39,7 +39,9 @@ let square_attr row col =
 
 let make_cell row col piece =
   let background = square_attr row col in
-  I.string A.(background ++ piece_attr piece) (Printf.sprintf " %s " (piece_label piece))
+  I.string
+    A.(background ++ piece_attr piece)
+    (Printf.sprintf " %s " (piece_label piece))
 
 let rank_label row =
   let text = string_of_int (board_size - row) in
@@ -50,7 +52,9 @@ let file_label col =
   I.string A.(fg lightwhite ++ st bold) (" " ^ ch ^ " ")
 
 let row_image board row =
-  let cells = List.init board_size (fun col -> make_cell row col (get board row col)) in
+  let cells =
+    List.init board_size (fun col -> make_cell row col (get board row col))
+  in
   I.hcat (rank_label row :: cells)
 
 let file_labels =
@@ -59,10 +63,6 @@ let file_labels =
   I.hcat [ left_margin; labels ]
 
 let banner =
-<<<<<<< HEAD
-  I.string A.(fg lightcyan ++ st bold)
-    "Camel Chess  White=uppercase  Black=lowercase  Camel=C  q quits"
-=======
   let a = A.(fg lightcyan ++ st bold) in
   I.vcat
     [
@@ -75,7 +75,6 @@ let banner =
       I.string a "Press esc to quit";
       I.void 0 1;
     ]
->>>>>>> 1d57fd6 (allow users to type inputs)
 
 let prompt_line input = I.string A.(fg lightgreen ++ st bold) ("Input: " ^ input)
 let status_line status = I.string A.(fg lightyellow) status
