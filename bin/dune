@@ -1,4 +1,4 @@
 (executable
  (public_name camel_chess)
  (name main)
- (libraries camel_chess))
+ (libraries camel_chess notty.unix))

@@ -1,2 +1,3 @@
 (library
- (name camel_chess))
+ (name camel_chess)
+ (libraries notty))
