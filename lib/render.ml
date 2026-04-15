@@ -59,9 +59,35 @@ let file_labels =
   I.hcat [ left_margin; labels ]
 
 let banner =
+<<<<<<< HEAD
   I.string A.(fg lightcyan ++ st bold)
     "Camel Chess  White=uppercase  Black=lowercase  Camel=C  q quits"
+=======
+  let a = A.(fg lightcyan ++ st bold) in
+  I.vcat
+    [
+      I.string a "Camel Chess";
+      I.void 0 1;
+      I.string a "White=uppercase and Black=lowercase";
+      I.void 0 1;
+      I.string a "Camel=C";
+      I.void 0 1;
+      I.string a "Press esc to quit";
+      I.void 0 1;
+    ]
+>>>>>>> 1d57fd6 (allow users to type inputs)
 
-let board_image board =
+let prompt_line input = I.string A.(fg lightgreen ++ st bold) ("Input: " ^ input)
+let status_line status = I.string A.(fg lightyellow) status
+
+let board_image ?(input = "") ?(status = "") board =
   let rows = List.init board_size (row_image board) |> I.vcat in
-  I.vcat [ banner; rows; file_labels ]
+  I.vcat
+    [
+      banner;
+      rows;
+      file_labels;
+      I.void 0 1;
+      prompt_line input;
+      status_line status;
+    ]
