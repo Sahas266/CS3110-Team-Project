@@ -1,5 +1,27 @@
 open OUnit2
 
+let logic_tests =
+  "logic tests"
+  >::: [
+         ( "parse_coordinate parses e2" >:: fun _ ->
+           assert_equal (Some (6, 4)) (Camel_chess.Logic.parse_coordinate "e2")
+         );
+         ( "parse_coordinate rejects out-of-range" >:: fun _ ->
+           assert_equal None (Camel_chess.Logic.parse_coordinate "z9") );
+         ( "parse_command parses identify with spacing/case" >:: fun _ ->
+           assert_equal
+             (Camel_chess.Logic.Identify (6, 4))
+             (Camel_chess.Logic.parse_command "  IDENTIFY   e2  ") );
+         ( "evaluate_input identifies occupied square" >:: fun _ ->
+           let board = Camel_chess.Board.initial () in
+           assert_equal "e1 contains a white king."
+             (Camel_chess.Logic.evaluate_input board "identify e1") );
+         ( "evaluate_input identifies empty square" >:: fun _ ->
+           let board = Camel_chess.Board.initial () in
+           assert_equal "e4 is empty."
+             (Camel_chess.Logic.evaluate_input board "identify e4") );
+       ]
+
 let tests =
   "test suite"
   >::: [
@@ -36,4 +58,5 @@ let tests =
                ignore (Camel_chess.Board.is_occupied board 8 0)) );
        ]
 
+let tests = "all tests" >::: [ tests; logic_tests ]
 let _ = run_test_tt_main tests
