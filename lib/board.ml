@@ -16,11 +16,9 @@ type piece =
   | Neutral of kind
 
 type square = piece option
-
 type t = square array array
 
 let board_size = 8
-
 let empty () = Array.make_matrix board_size board_size None
 
 let in_bounds row col =
