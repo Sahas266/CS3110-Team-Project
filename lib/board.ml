@@ -31,6 +31,13 @@ let set board row col piece =
   if in_bounds row col then board.(row).(col) <- piece
   else invalid_arg "Board.set"
 
+let is_occupied board row col =
+  if in_bounds row col then
+    match board.(row).(col) with
+    | Some _ -> true
+    | None -> false
+  else invalid_arg "Board.is_occupied"
+
 let back_rank color =
   [|
     Colored (color, Rook);

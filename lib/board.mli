@@ -45,9 +45,15 @@ val set : t -> int -> int -> square -> unit
     [occupant]. Raises [Invalid_argument] when the coordinate is out of bounds.
 *)
 
+val is_occupied : t -> int -> int -> bool
+(** [is_occupied board row col] is [true] when square [(row, col)] contains a
+  piece and [false] when it is empty.
+
+  Raises [Invalid_argument] when the coordinate is out of bounds. *)
+
 val initial : unit -> t
 (** Initial Camel Chess setup.
 
     Standard chess pieces are placed in their usual starting squares, and a
-    neutral camel (represented as [Unaligned Camel]) is placed at the board
+  neutral camel (represented as [Neutral Camel]) is placed at the board
     center. *)

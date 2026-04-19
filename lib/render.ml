@@ -72,7 +72,7 @@ let banner =
       I.void 0 1;
       I.string a "Camel=C";
       I.void 0 1;
-      I.string a "Press esc to quit";
+      I.string a "Press esc or Ctrl+C to quit";
       I.void 0 1;
     ]
 
