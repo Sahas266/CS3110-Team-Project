@@ -12,7 +12,7 @@ bug-reports: "https://github.com/username/reponame/issues"
 depends: [
   "dune" {>= "3.22"}
   "ocaml"
-  "notty"
+  "tsdl"
   "ounit2" {with-test}
   "odoc" {with-doc}
 ]

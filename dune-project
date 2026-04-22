@@ -21,7 +21,7 @@
  (description "A longer description")
  (depends
   ocaml
-  notty
+  tsdl
   (ounit2 :with-test))
  (tags
   ("add topics" "to describe" your project)))
