@@ -37,11 +37,22 @@ let square_attr row col =
   if (row + col) mod 2 = 0 then A.bg (rgb_hex 0xe9d8a6)
   else A.bg (rgb_hex 0x99582a)
 
-let make_cell row col piece =
-  let background = square_attr row col in
-  I.string
-    A.(background ++ piece_attr piece)
-    (Printf.sprintf " %s " (piece_label piece))
+let make_cell row col piece ~selected ~targets =
+  let is_sel = selected = Some (row, col) in
+  let is_tgt = List.mem (row, col) targets in
+  let sq_bg = if is_sel then A.bg (rgb_hex 0x7bc87e) else square_attr row col in
+  let green_attr = A.(fg (rgb_hex 0x538d4e) ++ st bold) in
+  if is_tgt && piece <> None then
+    I.hcat
+      [ I.string A.(sq_bg ++ green_attr) "["
+      ; I.string A.(sq_bg ++ piece_attr piece) (piece_label piece)
+      ; I.string A.(sq_bg ++ green_attr) "]" ]
+  else
+    let label, fg_attr =
+      if is_tgt then "•", green_attr
+      else piece_label piece, piece_attr piece
+    in
+    I.string A.(sq_bg ++ fg_attr) (Printf.sprintf " %s " label)
 
 let rank_label row =
   let text = string_of_int (board_size - row) in
@@ -51,9 +62,10 @@ let file_label col =
   let ch = Char.chr (Char.code 'a' + col) |> Char.escaped in
   I.string A.(fg lightwhite ++ st bold) (" " ^ ch ^ " ")
 
-let row_image board row =
+let row_image board row ~selected ~targets =
   let cells =
-    List.init board_size (fun col -> make_cell row col (get board row col))
+    List.init board_size (fun col ->
+      make_cell row col (get board row col) ~selected ~targets)
   in
   I.hcat (rank_label row :: cells)
 
@@ -79,8 +91,8 @@ let banner =
 let prompt_line input = I.string A.(fg lightgreen ++ st bold) ("Input: " ^ input)
 let status_line status = I.string A.(fg lightyellow) status
 
-let board_image ?(input = "") ?(status = "") board =
-  let rows = List.init board_size (row_image board) |> I.vcat in
+let board_image ?(input = "") ?(status = "") ?(selected = None) ?(targets = []) board =
+  let rows = List.init board_size (fun row -> row_image board row ~selected ~targets) |> I.vcat in
   I.vcat
     [
       banner;

@@ -2,6 +2,7 @@ type command =
   | Help
   | Clear
   | Identify of (int * int)
+  | Valid of (int * int)
   | Unknown
 
 let parse_coordinate input =
@@ -29,6 +30,10 @@ let parse_command input =
   | [ "identify"; coord ] -> (
       match parse_coordinate coord with
       | Some square -> Identify square
+      | None -> Unknown)
+  | [ "valid"; coord ] | [ coord ] -> (
+      match parse_coordinate coord with
+      | Some square -> Valid square
       | None -> Unknown)
   | _ -> Unknown
 
@@ -127,10 +132,33 @@ let valid_moves board row col =
           !acc
       | Board.Camel -> [])
 
+let describe_valid board row col targets =
+  if not (Board.in_bounds row col) then "Invalid coordinate."
+  else
+    let coord =
+      let file = Char.chr (Char.code 'a' + col) in
+      let rank = string_of_int (Board.board_size - row) in
+      Char.escaped file ^ rank
+    in
+    match Board.get board row col with
+    | None -> "No piece at " ^ coord ^ "."
+    | Some piece ->
+        let desc = match piece with
+          | Board.Neutral Board.Camel -> "neutral camel"
+          | Board.Neutral kind -> "neutral " ^ kind_name kind
+          | Board.Colored (color, kind) ->
+              (match color with Board.White -> "white" | Board.Black -> "black")
+              ^ " " ^ kind_name kind
+        in
+        let name = String.uppercase_ascii (String.sub coord 0 1) ^ String.sub coord 1 (String.length coord - 1) in
+        if targets = [] then name ^ " (" ^ desc ^ ") has no legal moves."
+        else name ^ " (" ^ desc ^ ") can move to the squares shown above."
+
 let evaluate_input board input =
   match parse_command input with
   | Help ->
-      "Available commands: help, clear, identify <coord> (e.g. identify e2)"
+      "Available commands: help, clear, identify <coord>, valid <coord>"
   | Clear -> ""
   | Identify (row, col) -> describe_square board row col
+  | Valid _ -> ""
   | Unknown -> "Unknown input. Use help or try: identify <coord>"

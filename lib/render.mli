@@ -2,4 +2,8 @@
 
     Optional [input] and [status] strings are shown below the board. *)
 val board_image :
-  ?input:string -> ?status:string -> Board.t -> Notty.image
+  ?input:string ->
+  ?status:string ->
+  ?selected:(int * int) option ->
+  ?targets:(int * int) list ->
+  Board.t -> Notty.image

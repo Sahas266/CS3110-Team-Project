@@ -2,6 +2,7 @@ type command =
   | Help
   | Clear
   | Identify of (int * int)
+  | Valid of (int * int)
   | Unknown
 
 val parse_coordinate : string -> (int * int) option
@@ -17,6 +18,10 @@ val describe_square : Board.t -> int -> int -> string
 (** Human-readable description of the square at [(row, col)]. *)
 
 val valid_moves : Board.t -> int -> int -> (int * int) list
+
+val describe_valid : Board.t -> int -> int -> (int * int) list -> string
+(** [describe_valid board row col targets] returns a status string for the
+    valid-moves display: describes the piece and whether it has legal moves. *)
 (** [valid_moves board row col] returns the list of squares the piece at
     [(row, col)] can legally move to, respecting bounds and blocking.
     Returns [[]] if the square is empty.
