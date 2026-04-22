@@ -8,7 +8,7 @@ let rgb_hex hex =
     ~b:(hex land 0xff)
 
 let piece_label = function
-  | None -> "."
+  | None -> " "
   | Some (Neutral Camel) -> "C"
   | Some (Neutral _) -> "?"
   | Some (Colored (White, King)) -> "K"
@@ -30,8 +30,8 @@ let piece_attr = function
   | None -> A.empty
   | Some (Neutral Camel) -> A.(fg (rgb_hex 0xcc6600) ++ st bold)
   | Some (Neutral _) -> A.(fg lightred ++ st bold)
-  | Some (Colored (White, _)) -> A.(fg (rgb_hex 0x1d3557) ++ st bold)
-  | Some (Colored (Black, _)) -> A.(fg (rgb_hex 0xf1faee) ++ st bold)
+  | Some (Colored (White, _)) -> A.(fg (rgb_hex 0xf1faee) ++ st bold)
+  | Some (Colored (Black, _)) -> A.(fg (rgb_hex 0x1d3557) ++ st bold)
 
 let square_attr row col =
   if (row + col) mod 2 = 0 then A.bg (rgb_hex 0xe9d8a6)

@@ -60,6 +60,73 @@ let describe_square board row col =
       in
       coord ^ " contains a " ^ color_name ^ " " ^ kind_name kind ^ "."
 
+let valid_moves board row col =
+  match Board.get board row col with
+  | None -> []
+  | Some (Board.Neutral Board.Camel) ->
+      let acc = ref [] in
+      for r = 0 to Board.board_size - 1 do
+        for c = 0 to Board.board_size - 1 do
+          if Board.get board r c = None then acc := (r, c) :: !acc
+        done
+      done;
+      !acc
+  | Some (Board.Neutral _) -> []
+  | Some (Board.Colored (color, kind)) ->
+      let slide dr dc =
+        let acc = ref [] in
+        let r = ref (row + dr) and c = ref (col + dc) in
+        let go = ref true in
+        while Board.in_bounds !r !c && !go do
+          match Board.get board !r !c with
+          | None -> acc := (!r, !c) :: !acc; r := !r + dr; c := !c + dc
+          | Some (Board.Colored (c2, _)) ->
+              if c2 <> color then acc := (!r, !c) :: !acc;
+              go := false
+          | Some (Board.Neutral _) -> go := false
+        done;
+        !acc
+      in
+      let step dr dc =
+        let r = row + dr and c = col + dc in
+        if not (Board.in_bounds r c) then []
+        else match Board.get board r c with
+          | None -> [ (r, c) ]
+          | Some (Board.Colored (c2, _)) when c2 <> color -> [ (r, c) ]
+          | _ -> []
+      in
+      let rook_dirs   = [ (1, 0); (-1, 0); (0, 1); (0, -1) ] in
+      let bishop_dirs = [ (1, 1); (1, -1); (-1, 1); (-1, -1) ] in
+      (match kind with
+      | Board.Rook   -> List.concat_map (fun (dr, dc) -> slide dr dc) rook_dirs
+      | Board.Bishop -> List.concat_map (fun (dr, dc) -> slide dr dc) bishop_dirs
+      | Board.Queen  -> List.concat_map (fun (dr, dc) -> slide dr dc) (rook_dirs @ bishop_dirs)
+      | Board.King   ->
+          List.concat_map (fun (dr, dc) -> step dr dc)
+            [ (1, 0); (-1, 0); (0, 1); (0, -1); (1, 1); (1, -1); (-1, 1); (-1, -1) ]
+      | Board.Knight ->
+          List.concat_map (fun (dr, dc) -> step dr dc)
+            [ (2, 1); (2, -1); (-2, 1); (-2, -1); (1, 2); (1, -2); (-1, 2); (-1, -2) ]
+      | Board.Pawn ->
+          let dir = match color with Board.White -> -1 | Board.Black -> 1 in
+          let start_row = match color with Board.White -> 6 | Board.Black -> 1 in
+          let acc = ref [] in
+          let r1 = row + dir in
+          if Board.in_bounds r1 col && Board.get board r1 col = None then begin
+            acc := (r1, col) :: !acc;
+            let r2 = row + (2 * dir) in
+            if row = start_row && Board.get board r2 col = None then
+              acc := (r2, col) :: !acc
+          end;
+          List.iter (fun dc ->
+            let r = row + dir and c = col + dc in
+            if Board.in_bounds r c then
+              match Board.get board r c with
+              | Some (Board.Colored (c2, _)) when c2 <> color -> acc := (r, c) :: !acc
+              | _ -> ()) [ -1; 1 ];
+          !acc
+      | Board.Camel -> [])
+
 let evaluate_input board input =
   match parse_command input with
   | Help ->
