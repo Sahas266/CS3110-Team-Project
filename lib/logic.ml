@@ -157,8 +157,8 @@ let describe_valid board row col targets =
 let evaluate_input board input =
   match parse_command input with
   | Help ->
-      "Available commands: help, clear, identify <coord>, valid <coord>"
-  | Clear -> ""
+      "Available commands: help, clear, identify e2, valid e2"
+  | Clear -> "Cleared."
   | Identify (row, col) -> describe_square board row col
   | Valid _ -> ""
-  | Unknown -> "Unknown input. Use help or try: identify <coord>"
+  | Unknown -> "Unknown input. Use help or try: identify e2 or valid e2"
