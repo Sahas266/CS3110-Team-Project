@@ -27,6 +27,7 @@ val destroy : t -> unit
 val draw :
   ?input:string ->
   ?status:string ->
+  ?turn:string ->
   ?selected:int * int ->
   ?targets:(int * int) list ->
   t ->

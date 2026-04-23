@@ -6,6 +6,7 @@ type state = {
   status : string;
   selected : (int * int) option;
   targets : (int * int) list;
+  turn : Camel_chess.Logic.turn;
 }
 
 let sdl context = function
@@ -24,6 +25,18 @@ let handle_command st =
         selected = Some (row, col);
         targets;
         status = Camel_chess.Logic.describe_valid st.board row col targets }
+  | (Camel_chess.Logic.Move _ | Camel_chess.Logic.Camel_move _) as cmd -> (
+      match Camel_chess.Logic.is_valid_move st.board st.turn cmd with
+      | Ok () ->
+          Camel_chess.Logic.apply_move st.board st.turn cmd;
+          let new_turn = Camel_chess.Logic.advance_turn st.turn in
+          { st with
+            turn = new_turn;
+            selected = None;
+            targets = [];
+            status = Camel_chess.Logic.prompt_for new_turn }
+      | Error msg ->
+          { st with selected = None; targets = []; status = msg })
   | _ ->
       { st with
         selected = None;
@@ -37,7 +50,8 @@ let clipped_title st =
 
 let redraw window view st =
   Sdl.set_window_title window (clipped_title st);
-  Camel_chess.Render.draw ~input:st.input ~status:st.status ?selected:st.selected
+  Camel_chess.Render.draw ~input:st.input ~status:st.status
+    ~turn:(Camel_chess.Logic.turn_label st.turn) ?selected:st.selected
     ~targets:st.targets view st.board
 
 let append_text st text =
@@ -101,13 +115,15 @@ let main () =
   Fun.protect
     (fun () ->
       let board = Camel_chess.Board.initial () in
+      let turn = Camel_chess.Logic.White_move in
       let initial_state =
         {
           board;
           input = "";
-          status = "Type help, identify e2, or valid e2, then press Enter.";
+          status = Camel_chess.Logic.prompt_for turn;
           selected = None;
           targets = [];
+          turn;
         }
       in
       Printf.printf "%s\n%!" initial_state.status;

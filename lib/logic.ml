@@ -1,9 +1,51 @@
+type turn =
+  | White_move
+  | White_camel
+  | Black_move
+  | Black_camel
+
 type command =
   | Help
   | Clear
   | Identify of (int * int)
   | Valid of (int * int)
+  | Move of (int * int) * (int * int)
+  | Camel_move of (int * int)
   | Unknown
+
+let turn_color = function
+  | White_move | White_camel -> Board.White
+  | Black_move | Black_camel -> Board.Black
+
+let advance_turn = function
+  | White_move -> White_camel
+  | White_camel -> Black_move
+  | Black_move -> Black_camel
+  | Black_camel -> White_move
+
+let prompt_for = function
+  | White_move -> "White to move. Use 'move <from> <to>'."
+  | White_camel -> "White must move the camel. Use 'move <to>'."
+  | Black_move -> "Black to move. Use 'move <from> <to>'."
+  | Black_camel -> "Black must move the camel. Use 'move <to>'."
+
+let turn_label = function
+  | White_move -> "White - Piece move"
+  | White_camel -> "White - Camel move"
+  | Black_move -> "Black - Piece move"
+  | Black_camel -> "Black - Camel move"
+
+let find_camel board =
+  let result = ref None in
+  for r = 0 to Board.board_size - 1 do
+    for c = 0 to Board.board_size - 1 do
+      if !result = None then
+        match Board.get board r c with
+        | Some (Board.Neutral Board.Camel) -> result := Some (r, c)
+        | _ -> ()
+    done
+  done;
+  !result
 
 let parse_coordinate input =
   let s = String.trim (String.lowercase_ascii input) in
@@ -34,6 +76,14 @@ let parse_command input =
   | [ "valid"; coord ] | [ coord ] -> (
       match parse_coordinate coord with
       | Some square -> Valid square
+      | None -> Unknown)
+  | [ "move"; src; dst ] -> (
+      match parse_coordinate src, parse_coordinate dst with
+      | Some s, Some d -> Move (s, d)
+      | _ -> Unknown)
+  | [ "move"; dst ] -> (
+      match parse_coordinate dst with
+      | Some d -> Camel_move d
       | None -> Unknown)
   | _ -> Unknown
 
@@ -154,11 +204,56 @@ let describe_valid board row col targets =
         if targets = [] then name ^ " (" ^ desc ^ ") has no legal moves."
         else name ^ " (" ^ desc ^ ") can move to the squares shown above."
 
+let is_valid_move board turn cmd =
+  match turn, cmd with
+  | (White_move | Black_move), Move ((sr, sc), dst) ->
+      let color = turn_color turn in
+      (match Board.get board sr sc with
+       | None -> Error "No piece at source square."
+       | Some (Board.Neutral _) ->
+           Error "Neutral pieces cannot be moved during the piece phase."
+       | Some (Board.Colored (c, _)) when c <> color ->
+           Error "That piece does not belong to you."
+       | Some (Board.Colored (_, Board.Camel)) ->
+           Error "Camels are moved during the camel phase."
+       | Some (Board.Colored _) ->
+           let moves = valid_moves board sr sc in
+           if List.mem dst moves then Ok ()
+           else Error "That piece cannot move to that square.")
+  | (White_move | Black_move), Camel_move _ ->
+      Error "Piece-move phase: use 'move <from> <to>'."
+  | (White_camel | Black_camel), Camel_move dst ->
+      (match find_camel board with
+       | None -> Error "No camel on the board."
+       | Some (cr, cc) ->
+           let moves = valid_moves board cr cc in
+           if List.mem dst moves then Ok ()
+           else Error "Camel must move to an empty square.")
+  | (White_camel | Black_camel), Move _ ->
+      Error "Camel-move phase: use 'move <to>'."
+  | _, _ -> Error "Not a move command."
+
+let apply_move board turn cmd =
+  match turn, cmd with
+  | (White_move | Black_move), Move ((sr, sc), (dr, dc)) ->
+      let piece = Board.get board sr sc in
+      Board.set board sr sc None;
+      Board.set board dr dc piece
+  | (White_camel | Black_camel), Camel_move (dr, dc) ->
+      (match find_camel board with
+       | Some (cr, cc) ->
+           Board.set board cr cc None;
+           Board.set board dr dc (Some (Board.Neutral Board.Camel))
+       | None -> ())
+  | _ -> ()
+
 let evaluate_input board input =
   match parse_command input with
   | Help ->
-      "Available commands: help, clear, identify e2, valid e2"
+      "Available commands: help, clear, identify e2, valid e2, move e2 e4, \
+       move e4 (camel)"
   | Clear -> "Cleared."
   | Identify (row, col) -> describe_square board row col
   | Valid _ -> ""
+  | Move _ | Camel_move _ -> ""
   | Unknown -> "Unknown input. Use help or try: identify e2 or valid e2"

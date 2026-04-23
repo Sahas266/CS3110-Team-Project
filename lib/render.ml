@@ -3,7 +3,7 @@ open Tsdl
 
 let cell_size = 80
 let margin = 36
-let info_height = 136
+let info_height = 221
 let board_pixels = board_size * cell_size
 let window_width = board_pixels + (2 * margin)
 let window_height = board_pixels + (2 * margin) + info_height
@@ -155,16 +155,20 @@ let tail text max_chars =
     let len = String.length text in
     if len <= max_chars then text else String.sub text (len - max_chars) max_chars
 
-let draw_info_panel renderer ~input ~status =
+let draw_info_panel renderer ~input ~status ~turn =
   let panel_x = margin in
-  let panel_y = margin + board_pixels + 12 in
+  let panel_y = margin + board_pixels + margin + 12 in
   let panel_w = board_pixels in
   let panel_h = info_height - 24 in
   let text_x = panel_x + 18 in
-  let input_y = panel_y + 16 in
+  let turn_y = panel_y + 16 in
+  let input_y = turn_y + line_advance + 10 in
   let status_y = input_y + line_advance + 10 in
-  let hint_y = status_y + (2 * line_advance) in
+  let hint_y = status_y + (2 * line_advance) + 10 in
   let max_chars = max 1 ((panel_w - 36) / glyph_advance) in
+  let turn_text =
+    if String.trim turn = "" then "TURN: ?" else "TURN: " ^ turn
+  in
   let input_text =
     if String.trim input = "" then "INPUT: TYPE A COMMAND" else "INPUT: " ^ input
   in
@@ -177,6 +181,7 @@ let draw_info_panel renderer ~input ~status =
   in
   fill_rect renderer (rgb 0x111827) ~x:panel_x ~y:panel_y ~w:panel_w ~h:panel_h;
   draw_outline renderer (rgb 0x3b4252) ~x:panel_x ~y:panel_y ~w:panel_w ~h:panel_h;
+  draw_text renderer (rgb 0xfacc15) ~x:text_x ~y:turn_y (tail turn_text max_chars);
   draw_text renderer (rgb 0xe5e7eb) ~x:text_x ~y:input_y (tail input_text max_chars);
   List.iteri
     (fun index line ->
@@ -351,9 +356,32 @@ let draw_target renderer x y occupied =
       ~cy:(y + (cell_size / 2))
       ~radius:9
 
-let draw ?(input = "") ?(status = "") ?selected ?(targets = []) view board =
+let label_color = rgb 0xe5e7eb
+
+let draw_coordinate_labels renderer =
+  let glyph_w = glyph_width * glyph_pixel in
+  let glyph_h = glyph_height * glyph_pixel in
+  let file_x col = margin + (col * cell_size) + ((cell_size - glyph_w) / 2) in
+  let rank_y row = margin + (row * cell_size) + ((cell_size - glyph_h) / 2) in
+  let top_y = (margin - glyph_h) / 2 in
+  let bottom_y = margin + board_pixels + ((margin - glyph_h) / 2) in
+  let left_x = (margin - glyph_w) / 2 in
+  let right_x = margin + board_pixels + ((margin - glyph_w) / 2) in
+  for col = 0 to board_size - 1 do
+    let ch = Char.chr (Char.code 'A' + col) in
+    draw_glyph renderer label_color (file_x col) top_y ch;
+    draw_glyph renderer label_color (file_x col) bottom_y ch
+  done;
+  for row = 0 to board_size - 1 do
+    let ch = Char.chr (Char.code '0' + (board_size - row)) in
+    draw_glyph renderer label_color left_x (rank_y row) ch;
+    draw_glyph renderer label_color right_x (rank_y row) ch
+  done
+
+let draw ?(input = "") ?(status = "") ?(turn = "") ?selected ?(targets = []) view board =
   let renderer = view.renderer in
   fill_rect renderer (rgb 0x1f2933) ~x:0 ~y:0 ~w:window_width ~h:window_height;
+  draw_coordinate_labels renderer;
   for row = 0 to board_size - 1 do
     for col = 0 to board_size - 1 do
       let x = margin + (col * cell_size) in
@@ -374,5 +402,5 @@ let draw ?(input = "") ?(status = "") ?selected ?(targets = []) view board =
           sdl (Sdl.render_copy ~dst renderer texture)
     done
   done;
-  draw_info_panel renderer ~input ~status;
+  draw_info_panel renderer ~input ~status ~turn;
   Sdl.render_present renderer
