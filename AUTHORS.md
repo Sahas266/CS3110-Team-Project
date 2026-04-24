@@ -4,3 +4,6 @@
 - name: Ryan Cheung, netid: rec324
 - name: Sahas Goli, netid: sg2636
 
+# Acknowledgements
+
+GenAI Usage: We used AI to help improve our test coverage to ensure that our logic functions covered everything necessary. Also used to confirm there were no surface level errors in our code. Helped create documentation for most functions. 
