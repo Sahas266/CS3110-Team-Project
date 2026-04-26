@@ -4,8 +4,9 @@ This file will provide instructions on how to run this project!
 # System Requirements
 This project runs in a Linux environment. Please make sure you are running the project in any Linux distribution.
 
-
 # Packages
+All of the below installation prompts are to be done in a Linux terminal. 
+
 This project uses OCaml libraries, so the OPAM package manager needs to be downloaded. To install, in your terminal please run:
 
 ```text
