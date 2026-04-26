@@ -24,10 +24,10 @@ let advance_turn = function
   | Black_camel -> White_move
 
 let prompt_for = function
-  | White_move -> "White to move. Use 'move <from> <to>'."
-  | White_camel -> "White must move the camel. Use 'move <to>'."
-  | Black_move -> "Black to move. Use 'move <from> <to>'."
-  | Black_camel -> "Black must move the camel. Use 'move <to>'."
+  | White_move -> "White to move. Use MOVE FROM TO. EX: MOVE E2 E4."
+  | White_camel -> "White camel move. Use MOVE TO. EX: MOVE E4."
+  | Black_move -> "Black to move. Use MOVE FROM TO. EX: MOVE E7 E5."
+  | Black_camel -> "Black camel move. Use MOVE TO. EX: MOVE E5."
 
 let turn_label = function
   | White_move -> "White - Piece move"
@@ -221,7 +221,7 @@ let is_valid_move board turn cmd =
            if List.mem dst moves then Ok ()
            else Error "That piece cannot move to that square.")
   | (White_move | Black_move), Camel_move _ ->
-      Error "Piece-move phase: use 'move <from> <to>'."
+      Error "Piece move phase. Use MOVE FROM TO. EX: MOVE E2 E4."
   | (White_camel | Black_camel), Camel_move dst ->
       (match find_camel board with
        | None -> Error "No camel on the board."
@@ -230,7 +230,7 @@ let is_valid_move board turn cmd =
            if List.mem dst moves then Ok ()
            else Error "Camel must move to an empty square.")
   | (White_camel | Black_camel), Move _ ->
-      Error "Camel-move phase: use 'move <to>'."
+      Error "Camel move phase. Use MOVE TO. EX: MOVE E4."
   | _, _ -> Error "Not a move command."
 
 let apply_move board turn cmd =
@@ -250,10 +250,9 @@ let apply_move board turn cmd =
 let evaluate_input board input =
   match parse_command input with
   | Help ->
-      "Available commands: help, clear, identify e2, valid e2, move e2 e4, \
-       move e4 (camel)"
+  "Commands: HELP CLEAR IDENTIFY E2 VALID E2 MOVE E2 E4. Camel EX: MOVE E4"
   | Clear -> "Cleared."
   | Identify (row, col) -> describe_square board row col
   | Valid _ -> ""
   | Move _ | Camel_move _ -> ""
-  | Unknown -> "Unknown input. Use help or try: identify e2 or valid e2"
+  | Unknown -> "Unknown input. EX: MOVE E2 E4. Type HELP for all commands"

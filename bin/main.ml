@@ -100,16 +100,20 @@ let rec event_loop window view event st =
 
 let main () =
   sdl "SDL init" (Sdl.init Sdl.Init.(video + events));
+  let window_flags = Sdl.Window.(shown + resizable) in
   let window =
     sdl "Create window"
       (Sdl.create_window ~w:Camel_chess.Render.window_width
-         ~h:Camel_chess.Render.window_height "Camel Chess" Sdl.Window.shown)
+         ~h:Camel_chess.Render.window_height "Camel Chess" window_flags)
   in
   let renderer =
     sdl "Create renderer"
       (Sdl.create_renderer window
          ~flags:Sdl.Renderer.(accelerated + presentvsync + targettexture))
   in
+  sdl "Set logical size"
+    (Sdl.render_set_logical_size renderer Camel_chess.Render.window_width
+       Camel_chess.Render.window_height);
   let view = Camel_chess.Render.create renderer in
   Sdl.start_text_input ();
   Fun.protect
