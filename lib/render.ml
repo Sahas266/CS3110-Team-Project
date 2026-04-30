@@ -155,7 +155,9 @@ let tail text max_chars =
     let len = String.length text in
     if len <= max_chars then text else String.sub text (len - max_chars) max_chars
 
-let draw_info_panel renderer ~input ~status ~turn ~check =
+let default_hint = "ENTER RUNS COMMAND. ESC QUITS."
+
+let draw_info_panel renderer ~input ~status ~turn ~check ~hint =
   let panel_x = margin in
   let panel_y = margin + board_pixels + margin + 12 in
   let panel_w = board_pixels in
@@ -191,8 +193,7 @@ let draw_info_panel renderer ~input ~status ~turn ~check =
     status_lines;
   if String.trim check <> "" then
     draw_text renderer (rgb 0xef4444) ~x:text_x ~y:check_y (tail check max_chars);
-  draw_text renderer (rgb 0x94a3b8) ~x:text_x ~y:hint_y
-    "ENTER RUNS COMMAND. ESC QUITS."
+  draw_text renderer (rgb 0x94a3b8) ~x:text_x ~y:hint_y (tail hint max_chars)
 
 let piece_colors = function
   | Colored (White, _) -> (rgb 0xfffbf0, rgb 0x050505)
@@ -418,7 +419,8 @@ let draw_coordinate_labels renderer =
   done
 
 let draw ?(input = "") ?(status = "") ?(turn = "") ?(check = "")
-    ?(check_squares = []) ?selected ?(targets = []) view board =
+    ?(check_squares = []) ?(hint = default_hint) ?selected ?(targets = [])
+    view board =
   let renderer = view.renderer in
   fill_rect renderer (rgb 0x1f2933) ~x:0 ~y:0 ~w:window_width ~h:window_height;
   draw_coordinate_labels renderer;
@@ -443,5 +445,5 @@ let draw ?(input = "") ?(status = "") ?(turn = "") ?(check = "")
           sdl (Sdl.render_copy ~dst renderer texture)
     done
   done;
-  draw_info_panel renderer ~input ~status ~turn ~check;
+  draw_info_panel renderer ~input ~status ~turn ~check ~hint;
   Sdl.render_present renderer

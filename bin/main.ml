@@ -9,6 +9,8 @@ type state = {
   turn : Camel_chess.Logic.turn;
   check : string;
   check_squares : (int * int) list;
+  winner : Camel_chess.Board.color option;
+  quit : bool;
 }
 
 let compute_check board =
@@ -23,6 +25,34 @@ let compute_check board =
   in
   (msg, squares)
 
+let detect_winner board =
+  let module L = Camel_chess.Logic in
+  let module B = Camel_chess.Board in
+  match L.find_king board B.White, L.find_king board B.Black with
+  | None, Some _ -> Some B.Black
+  | Some _, None -> Some B.White
+  | _ -> None
+
+let fresh_state () =
+  let board = Camel_chess.Board.initial () in
+  let turn = Camel_chess.Logic.White_move in
+  {
+    board;
+    input = "";
+    status = Camel_chess.Logic.prompt_for turn;
+    selected = None;
+    targets = [];
+    turn;
+    check = "";
+    check_squares = [];
+    winner = None;
+    quit = false;
+  }
+
+let checkmate_message = function
+  | Camel_chess.Board.White -> "CHECKMATE - WHITE WINS!"
+  | Camel_chess.Board.Black -> "CHECKMATE - BLACK WINS!"
+
 let sdl context = function
   | Ok value -> value
   | Error (`Msg msg) -> failwith (context ^ ": " ^ msg)
@@ -32,33 +62,51 @@ let drop_last_char s =
   if len = 0 then s else String.sub s 0 (len - 1)
 
 let handle_command st =
-  match Camel_chess.Logic.parse_command st.input with
-  | Camel_chess.Logic.Valid (row, col) ->
-      let targets = Camel_chess.Logic.valid_moves st.board row col in
-      { st with
-        selected = Some (row, col);
-        targets;
-        status = Camel_chess.Logic.describe_valid st.board row col targets }
-  | (Camel_chess.Logic.Move _ | Camel_chess.Logic.Camel_move _) as cmd -> (
-      match Camel_chess.Logic.is_valid_move st.board st.turn cmd with
-      | Ok () ->
-          Camel_chess.Logic.apply_move st.board st.turn cmd;
-          let new_turn = Camel_chess.Logic.advance_turn st.turn in
-          let check, check_squares = compute_check st.board in
-          { st with
-            turn = new_turn;
-            selected = None;
-            targets = [];
-            status = Camel_chess.Logic.prompt_for new_turn;
-            check;
-            check_squares }
-      | Error msg ->
-          { st with selected = None; targets = []; status = msg })
-  | _ ->
-      { st with
-        selected = None;
-        targets = [];
-        status = Camel_chess.Logic.evaluate_input st.board st.input }
+  if st.winner <> None then
+    match String.lowercase_ascii (String.trim st.input) with
+    | "exit" -> { st with quit = true }
+    | "restart" -> fresh_state ()
+    | "" -> st
+    | _ -> { st with status = "Game over. Type EXIT or RESTART." }
+  else
+    match Camel_chess.Logic.parse_command st.input with
+    | Camel_chess.Logic.Valid (row, col) ->
+        let targets = Camel_chess.Logic.valid_moves st.board row col in
+        { st with
+          selected = Some (row, col);
+          targets;
+          status = Camel_chess.Logic.describe_valid st.board row col targets }
+    | (Camel_chess.Logic.Move _ | Camel_chess.Logic.Camel_move _) as cmd -> (
+        match Camel_chess.Logic.is_valid_move st.board st.turn cmd with
+        | Ok () ->
+            Camel_chess.Logic.apply_move st.board st.turn cmd;
+            let winner = detect_winner st.board in
+            (match winner with
+             | Some color ->
+                 { st with
+                   selected = None;
+                   targets = [];
+                   status = "";
+                   check = checkmate_message color;
+                   check_squares = [];
+                   winner = Some color }
+             | None ->
+                 let new_turn = Camel_chess.Logic.advance_turn st.turn in
+                 let check, check_squares = compute_check st.board in
+                 { st with
+                   turn = new_turn;
+                   selected = None;
+                   targets = [];
+                   status = Camel_chess.Logic.prompt_for new_turn;
+                   check;
+                   check_squares })
+        | Error msg ->
+            { st with selected = None; targets = []; status = msg })
+    | _ ->
+        { st with
+          selected = None;
+          targets = [];
+          status = Camel_chess.Logic.evaluate_input st.board st.input }
 
 let clipped_title st =
   let input = if st.input = "" then "<type command>" else st.input in
@@ -67,9 +115,13 @@ let clipped_title st =
 
 let redraw window view st =
   Sdl.set_window_title window (clipped_title st);
+  let hint =
+    if st.winner <> None then "TYPE EXIT OR RESTART."
+    else "ENTER RUNS COMMAND. ESC QUITS."
+  in
   Camel_chess.Render.draw ~input:st.input ~status:st.status
     ~turn:(Camel_chess.Logic.turn_label st.turn) ~check:st.check
-    ~check_squares:st.check_squares ?selected:st.selected
+    ~check_squares:st.check_squares ~hint ?selected:st.selected
     ~targets:st.targets view st.board
 
 let append_text st text =
@@ -94,7 +146,9 @@ let handle_event event st =
       | key when key = Sdl.K.return ->
           let updated = handle_command st in
           report_command st.input updated.status;
-          (`Continue, { updated with input = "" })
+          let cleared = { updated with input = "" } in
+          if cleared.quit then (`Quit, cleared)
+          else (`Continue, cleared)
       | _ -> (`Continue, st))
   | `Text_input ->
       let text = Sdl.Event.(get event text_input_text) in
@@ -136,20 +190,7 @@ let main () =
   Sdl.start_text_input ();
   Fun.protect
     (fun () ->
-      let board = Camel_chess.Board.initial () in
-      let turn = Camel_chess.Logic.White_move in
-      let initial_state =
-        {
-          board;
-          input = "";
-          status = Camel_chess.Logic.prompt_for turn;
-          selected = None;
-          targets = [];
-          turn;
-          check = "";
-          check_squares = [];
-        }
-      in
+      let initial_state = fresh_state () in
       Printf.printf "%s\n%!" initial_state.status;
       event_loop window view (Sdl.Event.create ()) initial_state)
     ~finally:(fun () ->
