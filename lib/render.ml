@@ -192,60 +192,110 @@ let draw_info_panel renderer ~input ~status ~turn =
     "ENTER RUNS COMMAND. ESC QUITS."
 
 let piece_colors = function
-  | Colored (White, _) -> (rgb 0xf8f4e8, rgb 0x2b2d42)
-  | Colored (Black, _) -> (rgb 0x202734, rgb 0xf8f4e8)
+  | Colored (White, _) -> (rgb 0xfffbf0, rgb 0x050505)
+  | Colored (Black, _) -> (rgb 0x242424, rgb 0xfffbf0)
   | Neutral _ -> (rgb 0xc97830, rgb 0x3b1f0f)
 
+let fill_circle_outline renderer fill outline ~cx ~cy ~radius =
+  fill_circle renderer outline ~cx ~cy ~radius:(radius + 3);
+  fill_circle renderer fill ~cx ~cy ~radius
+
+let fill_rect_outline renderer fill outline ~x ~y ~w ~h =
+  fill_rect renderer outline ~x:(x - 3) ~y:(y - 3) ~w:(w + 6) ~h:(h + 6);
+  fill_rect renderer fill ~x ~y ~w ~h
+
 let draw_base renderer fill outline =
-  fill_rect renderer outline ~x:18 ~y:62 ~w:44 ~h:5;
-  fill_rect renderer fill ~x:22 ~y:56 ~w:36 ~h:8;
-  fill_rect renderer fill ~x:16 ~y:65 ~w:48 ~h:6
+  fill_rect renderer outline ~x:13 ~y:65 ~w:54 ~h:7;
+  fill_rect renderer outline ~x:19 ~y:58 ~w:42 ~h:8;
+  fill_rect renderer outline ~x:24 ~y:53 ~w:32 ~h:8;
+  fill_rect renderer fill ~x:16 ~y:65 ~w:48 ~h:4;
+  fill_rect renderer fill ~x:22 ~y:58 ~w:36 ~h:5;
+  fill_rect renderer fill ~x:27 ~y:53 ~w:26 ~h:5
 
 let draw_pawn renderer fill outline =
-  fill_circle renderer fill ~cx:40 ~cy:25 ~radius:12;
-  fill_circle renderer outline ~cx:40 ~cy:25 ~radius:13;
-  fill_circle renderer fill ~cx:40 ~cy:25 ~radius:11;
-  fill_rect renderer fill ~x:31 ~y:36 ~w:18 ~h:24;
+  fill_circle_outline renderer fill outline ~cx:40 ~cy:22 ~radius:11;
+  fill_circle_outline renderer fill outline ~cx:40 ~cy:42 ~radius:14;
+  fill_rect renderer fill ~x:29 ~y:39 ~w:22 ~h:19;
   draw_base renderer fill outline
 
 let draw_king renderer fill outline =
   draw_base renderer fill outline;
-  fill_rect renderer fill ~x:29 ~y:28 ~w:22 ~h:32;
-  fill_circle renderer fill ~cx:40 ~cy:31 ~radius:13;
-  draw_line renderer outline 40 10 40 27;
-  draw_line renderer outline 32 18 48 18
+  fill_rect_outline renderer fill outline ~x:29 ~y:33 ~w:22 ~h:25;
+  fill_circle_outline renderer fill outline ~cx:40 ~cy:31 ~radius:14;
+  fill_rect renderer outline ~x:37 ~y:8 ~w:6 ~h:19;
+  fill_rect renderer outline ~x:31 ~y:14 ~w:18 ~h:6;
+  fill_rect renderer fill ~x:39 ~y:10 ~w:2 ~h:16;
+  fill_rect renderer fill ~x:33 ~y:16 ~w:14 ~h:2
 
 let draw_queen renderer fill outline =
   draw_base renderer fill outline;
-  fill_rect renderer fill ~x:26 ~y:34 ~w:28 ~h:27;
+  fill_rect_outline renderer fill outline ~x:27 ~y:34 ~w:26 ~h:25;
   List.iter
-    (fun (x, y) -> fill_circle renderer fill ~cx:x ~cy:y ~radius:8)
-    [ (25, 25); (40, 17); (55, 25) ];
-  draw_line renderer outline 25 25 31 42;
-  draw_line renderer outline 40 17 40 42;
-  draw_line renderer outline 55 25 49 42
+    (fun (x, y) -> fill_circle_outline renderer fill outline ~cx:x ~cy:y ~radius:6)
+    [ (21, 27); (31, 20); (40, 16); (49, 20); (59, 27) ];
+  List.iter
+    (fun (x1, y1, x2, y2) -> draw_line renderer outline x1 y1 x2 y2)
+    [ (21, 27, 30, 43); (31, 20, 35, 43); (40, 16, 40, 43);
+      (49, 20, 45, 43); (59, 27, 50, 43) ]
 
 let draw_rook renderer fill outline =
   draw_base renderer fill outline;
-  fill_rect renderer fill ~x:25 ~y:25 ~w:30 ~h:35;
+  fill_rect_outline renderer fill outline ~x:24 ~y:29 ~w:32 ~h:30;
+  fill_rect renderer outline ~x:20 ~y:18 ~w:40 ~h:14;
   List.iter
-    (fun x -> fill_rect renderer fill ~x ~y:17 ~w:8 ~h:14)
-    [ 23; 36; 49 ];
-  fill_rect renderer outline ~x:24 ~y:31 ~w:32 ~h:4
+    (fun x -> fill_rect renderer fill ~x ~y:18 ~w:7 ~h:11)
+    [ 23; 36; 50 ];
+  fill_rect renderer fill ~x:21 ~y:25 ~w:38 ~h:6
 
 let draw_bishop renderer fill outline =
   draw_base renderer fill outline;
-  fill_circle renderer fill ~cx:40 ~cy:27 ~radius:15;
-  fill_rect renderer fill ~x:31 ~y:34 ~w:18 ~h:28;
-  draw_line renderer outline 47 16 34 35
+  fill_circle_outline renderer fill outline ~cx:40 ~cy:27 ~radius:16;
+  fill_rect_outline renderer fill outline ~x:31 ~y:36 ~w:18 ~h:23;
+  draw_line renderer outline 49 15 34 38;
+  draw_line renderer outline 50 16 35 39
 
 let draw_knight renderer fill outline =
   draw_base renderer fill outline;
-  fill_rect renderer fill ~x:28 ~y:34 ~w:21 ~h:28;
-  fill_rect renderer fill ~x:30 ~y:19 ~w:28 ~h:18;
-  fill_rect renderer fill ~x:23 ~y:25 ~w:16 ~h:14;
-  draw_line renderer outline 53 22 61 15;
-  draw_line renderer outline 29 35 22 44
+  fill_rect_outline renderer fill outline ~x:29 ~y:35 ~w:22 ~h:24;
+  fill_circle_outline renderer fill outline ~cx:40 ~cy:31 ~radius:16;
+  fill_rect renderer fill ~x:28 ~y:19 ~w:26 ~h:24;
+  fill_rect renderer outline ~x:24 ~y:18 ~w:9 ~h:18;
+  fill_rect renderer outline ~x:52 ~y:22 ~w:8 ~h:6;
+  draw_line renderer outline 34 13 29 22;
+  draw_line renderer outline 34 13 45 20;
+  draw_line renderer outline 45 20 58 23;
+  draw_line renderer outline 30 38 22 48
+
+let chess_glyph_masks =
+  [
+    (King, [| 0x0000000000000000L; 0x0000000000000000L; 0x0000000000000000L; 0x0000000000000000L; 0x0000000000000000L; 0x0000000000000000L; 0x0000000380000000L; 0x00000003c0000000L; 0x00000003c0000000L; 0x00000007e0000000L; 0x0000003ffc000000L; 0x0000003ffc000000L; 0x00000003c0000000L; 0x00000003c0000000L; 0x00000007e0000000L; 0x0000000ff0000000L; 0x0000001c38000000L; 0x0000003818000000L; 0x0000fff81fff0000L; 0x0003fff81fffc000L; 0x000ffff81fffe000L; 0x001ffffc3ffff800L; 0x003f807ffc01fc00L; 0x007e3f1ff8fc7c00L; 0x007cffcfe3ff3e00L; 0x00f9ffe7e7ff9f00L; 0x00f3fff7efffdf00L; 0x01f7fff7efffcf00L; 0x01e7fff7efffef80L; 0x01effff7efffe780L; 0x03effff7effff780L; 0x03cffff7effff780L; 0x03cffff7effff780L; 0x03effff7effff780L; 0x03effff7effff780L; 0x01effff7efffe780L; 0x01e7fff7efffef80L; 0x01f7fff7efffcf00L; 0x00f3fff7efff9f00L; 0x00f9fff7efff3e00L; 0x007c7ff7effe7e00L; 0x007f0007e000fc00L; 0x003ffffffffff800L; 0x001ffffffffff800L; 0x000fffffffffe000L; 0x0003ffffffffc000L; 0x0001e00000070000L; 0x0001e7ffffe70000L; 0x0001effffff70000L; 0x0001effffff70000L; 0x0001effffff70000L; 0x0001effffff70000L; 0x0001effffff70000L; 0x0001effffff70000L; 0x0001efffffe70000L; 0x0001e00000070000L; 0x0001ffffffff0000L; 0x0001ffffffff0000L; 0x0001ffffffff0000L; 0x0000ffffffff0000L; 0x0000000000000000L; 0x0000000000000000L; 0x0000000000000000L; 0x0000000000000000L |]);
+    (Queen, [| 0x0000000000000000L; 0x0000000000000000L; 0x0000000000000000L; 0x0000000000000000L; 0x0000000000000000L; 0x0000000000000000L; 0x0000000000000000L; 0x00000003e0000000L; 0x00000007f0000000L; 0x00001c0ff03c0000L; 0x00007f0ff87e0000L; 0x00007f0ff0ff0000L; 0x0000ff87f0ff0000L; 0x0000ff81c0ff0000L; 0x00007f01c0ff0000L; 0x00003f01c07e0000L; 0x00181e01c07c1c00L; 0x007e0e03c0783f00L; 0x00ff0f03c0787f00L; 0x00ff0f03c0707f80L; 0x00ff0f03c0f07f80L; 0x00ff0f03c0f07f80L; 0x007e0f83e0f03f00L; 0x003c0f83e0f03c00L; 0x000c0783e1f07800L; 0x000e0783e1f07000L; 0x000e07c3e1e0f000L; 0x000707c3e1e0f000L; 0x000707c3e3e1e000L; 0x000787c3e3e1e000L; 0x000387e3e3e3e000L; 0x0003c7e3e3e3c000L; 0x0003c7e3e7e7c000L; 0x0001e7e3e7e78000L; 0x0001e7f3e7cf8000L; 0x0001f7f3e7cf8000L; 0x0000f7f7efdf0000L; 0x0000fff7efdf0000L; 0x0000fbffefff0000L; 0x0000ffffeffe0000L; 0x00007ffffffe0000L; 0x00007ffffffe0000L; 0x00007ffffffe0000L; 0x00007ffffffe0000L; 0x0000700000060000L; 0x0000700000060000L; 0x0000700000060000L; 0x00007ffffffe0000L; 0x00007ffffffe0000L; 0x00007ffffffe0000L; 0x00007ffffffe0000L; 0x00007ffffffe0000L; 0x00007ffffffe0000L; 0x00007ffffffe0000L; 0x00007ffffffe0000L; 0x0000700000060000L; 0x0000700000060000L; 0x00007ffffffe0000L; 0x00007ffffffe0000L; 0x00007ffffffe0000L; 0x0000000000000000L; 0x0000000000000000L; 0x0000000000000000L; 0x0000000000000000L |]);
+    (Rook, [| 0x0000000000000000L; 0x0000000000000000L; 0x0000000000000000L; 0x0000000000000000L; 0x0000000000000000L; 0x0000000000000000L; 0x000ff81ff81ff800L; 0x000ffc1ff81ff800L; 0x000ffc1ff81ff800L; 0x000ffc1ff81ff800L; 0x000ffc1ff81ff800L; 0x000ffc1ff81ff800L; 0x0000ffffffff8000L; 0x0000ffffffff8000L; 0x0000ffffffff8000L; 0x0000f800001f8000L; 0x0000f800001f8000L; 0x0000f800001f8000L; 0x0000ffffffff0000L; 0x00007ffffffe0000L; 0x00003ffffffe0000L; 0x00003ffffffc0000L; 0x00001ffffffc0000L; 0x00001ffffffc0000L; 0x00001ffffffc0000L; 0x00001ffffffc0000L; 0x00001ffffffc0000L; 0x00001ffffffc0000L; 0x00001ffffffc0000L; 0x00001ffffffc0000L; 0x00001ffffffc0000L; 0x00001ffffffc0000L; 0x00001ffffffc0000L; 0x00001ffffffc0000L; 0x00001ffffffc0000L; 0x00001ffffffc0000L; 0x00001ffffffc0000L; 0x00001ffffffc0000L; 0x00001ffffffc0000L; 0x00001ffffffc0000L; 0x00001ffffffc0000L; 0x00001ffffffc0000L; 0x00001ffffffc0000L; 0x00001ffffffc0000L; 0x00003ffffffc0000L; 0x00003ffffffe0000L; 0x00007fffffff0000L; 0x0000ffffffff0000L; 0x0000ffffffff8000L; 0x0000e00000038000L; 0x0000e00000038000L; 0x0000e00000038000L; 0x0000ffffffff8000L; 0x000ffffffffff800L; 0x000ffffffffff800L; 0x000c000000003800L; 0x000c000000003800L; 0x000ffffffffff800L; 0x000ffffffffff800L; 0x0000000000000000L; 0x0000000000000000L; 0x0000000000000000L; 0x0000000000000000L; 0x0000000000000000L |]);
+    (Bishop, [| 0x0000000000000000L; 0x0000000000000000L; 0x0000000000000000L; 0x0000000000000000L; 0x0000000000000000L; 0x0000000000000000L; 0x0000000080000000L; 0x00000007f0000000L; 0x0000000ff8000000L; 0x0000001ff8000000L; 0x0000001ffc000000L; 0x0000003ffc000000L; 0x0000003ffc000000L; 0x0000003ffc000000L; 0x0000001ffc000000L; 0x0000001ff8000000L; 0x0000000ff0000000L; 0x0000001ffc000000L; 0x0000007ffe000000L; 0x000000ffff000000L; 0x000001ffff800000L; 0x000003fc3fc00000L; 0x000003fc3fc00000L; 0x000007fc3fe00000L; 0x000007fc3fe00000L; 0x000007fc1fe00000L; 0x0000070000f00000L; 0x0000070000f00000L; 0x0000070000f00000L; 0x000007fc3fe00000L; 0x000007fc3fe00000L; 0x000003fc3fe00000L; 0x000003fc3fc00000L; 0x000001ffffc00000L; 0x000001ffff800000L; 0x000000ffff000000L; 0x0000007ffe000000L; 0x0000007fff000000L; 0x000000ffff000000L; 0x000000ffff000000L; 0x000000ffff000000L; 0x000000ffff800000L; 0x000000ffff000000L; 0x000000ffff000000L; 0x000000ffff000000L; 0x000000ffff000000L; 0x000000ffff000000L; 0x000001ffff800000L; 0x000001ffffc00000L; 0x000003ffffc00000L; 0x000007ffffe00000L; 0x000007fffff00000L; 0x00000ffffff00000L; 0x00001ffffff80000L; 0x00003ffffffc0000L; 0x00003ffffffc0000L; 0x00007ffffffe0000L; 0x0000ffffffff0000L; 0x0000ffffffff8000L; 0x0000ffffffff8000L; 0x0000000000000000L; 0x0000000000000000L; 0x0000000000000000L; 0x0000000000000000L |]);
+    (Knight, [| 0x0000000000000000L; 0x0000000000000000L; 0x0000000000000000L; 0x0000000000000000L; 0x0000000000000000L; 0x0000000000000000L; 0x0000000000000000L; 0x0000000600000000L; 0x0000000f00000000L; 0x0000000f80000000L; 0x0000180f80000000L; 0x00003c0fc0000000L; 0x00003e07c0000000L; 0x00003f07c0000000L; 0x00003f8fc0000000L; 0x00001fff80000000L; 0x00000fffc0000000L; 0x00000ffff0000000L; 0x00001ffff8000000L; 0x00003fffbc000000L; 0x00007fffde000000L; 0x0000ffffe7000000L; 0x0000f1fff3800000L; 0x0001e3fff9c00000L; 0x0001e3fffce00000L; 0x0003e7fffee00000L; 0x0003ffffff700000L; 0x0003ffffffb80000L; 0x0003ffffffb80000L; 0x0003ffffffdc0000L; 0x0003ffffffcc0000L; 0x0003ffffffee0000L; 0x0003ffffffe60000L; 0x0003fffffff70000L; 0x0003fffffff30000L; 0x0007fffffffb8000L; 0x0007fffffffb8000L; 0x0007fffffff98000L; 0x0007fffefff9c000L; 0x000f3ffdfffdc000L; 0x000e3ffbfffcc000L; 0x000e7fe7fffcc000L; 0x000fff8ffffce000L; 0x000fff1ffffee000L; 0x0003df3ffffee000L; 0x00009cfffffe6000L; 0x000011fffffe7000L; 0x000003fffffe7000L; 0x000007fffffe7000L; 0x00000ffffffe7000L; 0x00000fffffff7000L; 0x00001fffffff3000L; 0x00001fffffff3800L; 0x00003fffffff3800L; 0x00003fffffff3800L; 0x00003fffffff3800L; 0x00003fffffff3800L; 0x00003ffffffff800L; 0x00003ffffffff800L; 0x00001ffffffff800L; 0x0000000000000000L; 0x0000000000000000L; 0x0000000000000000L; 0x0000000000000000L |]);
+    (Pawn, [| 0x0000000000000000L; 0x0000000000000000L; 0x0000000000000000L; 0x0000000000000000L; 0x0000000000000000L; 0x0000000000000000L; 0x00000001c0000000L; 0x00000007f0000000L; 0x0000000ff8000000L; 0x0000001ffc000000L; 0x0000001ffc000000L; 0x0000003ffc000000L; 0x0000003ffc000000L; 0x0000003ffc000000L; 0x0000001ffc000000L; 0x0000001ff8000000L; 0x0000000ff0000000L; 0x0000003ffc000000L; 0x0000007fff000000L; 0x000000ffff800000L; 0x000001ffff800000L; 0x000003ffffc00000L; 0x000003ffffe00000L; 0x000007ffffe00000L; 0x000007ffffe00000L; 0x000007fffff00000L; 0x000007fffff00000L; 0x000007fffff00000L; 0x000007fffff00000L; 0x000007ffffe00000L; 0x000007ffffe00000L; 0x000003ffffe00000L; 0x000003ffffc00000L; 0x000001ffffc00000L; 0x000000ffff800000L; 0x000001ffffc00000L; 0x000007fffff00000L; 0x00001ffffff80000L; 0x00003ffffffc0000L; 0x00007fffffff0000L; 0x0000ffffffff8000L; 0x0001ffffffff8000L; 0x0003ffffffffc000L; 0x0003ffffffffe000L; 0x0007ffffffffe000L; 0x0007fffffffff000L; 0x000ffffffffff000L; 0x000ffffffffff800L; 0x001ffffffffff800L; 0x001ffffffffff800L; 0x001ffffffffffc00L; 0x001ffffffffffc00L; 0x001ffffffffffc00L; 0x003ffffffffffc00L; 0x003ffffffffffc00L; 0x003ffffffffffc00L; 0x003ffffffffffc00L; 0x001ffffffffffc00L; 0x001ffffffffffc00L; 0x0000000000000000L; 0x0000000000000000L; 0x0000000000000000L; 0x0000000000000000L; 0x0000000000000000L |]);
+  ]
+
+let mask_has mask row col =
+  row >= 0 && row < Array.length mask && col >= 0 && col < 64
+  && Int64.logand
+       (Int64.shift_right_logical mask.(row) (63 - col))
+       1L
+     = 1L
+
+let draw_mask renderer color mask ~x ~y ~grow =
+  for row = 0 to 63 do
+    for col = 0 to 63 do
+      if mask_has mask row col then
+        fill_rect renderer color ~x:(x + col - grow) ~y:(y + row - grow)
+          ~w:((2 * grow) + 1) ~h:((2 * grow) + 1)
+    done
+  done
+
+let draw_glyph_piece renderer kind fill outline =
+  let mask = List.assoc kind chess_glyph_masks in
+  draw_mask renderer outline mask ~x:8 ~y:8 ~grow:2;
+  draw_mask renderer fill mask ~x:8 ~y:8 ~grow:0
 
 let draw_camel renderer fill outline =
   fill_circle renderer fill ~cx:24 ~cy:44 ~radius:10;
@@ -274,23 +324,9 @@ let draw_camel renderer fill outline =
 
 let draw_piece_shape renderer piece =
   let fill, outline = piece_colors piece in
-  let draw =
-    match piece with
-    | Colored (_, King) -> draw_king
-    | Colored (_, Queen) -> draw_queen
-    | Colored (_, Rook) -> draw_rook
-    | Colored (_, Bishop) -> draw_bishop
-    | Colored (_, Knight) -> draw_knight
-    | Colored (_, Pawn) -> draw_pawn
-    | Colored (_, Camel) | Neutral Camel -> draw_camel
-    | Neutral King -> draw_king
-    | Neutral Queen -> draw_queen
-    | Neutral Rook -> draw_rook
-    | Neutral Bishop -> draw_bishop
-    | Neutral Knight -> draw_knight
-    | Neutral Pawn -> draw_pawn
-  in
-  draw renderer fill outline
+  match piece with
+  | Colored (_, Camel) | Neutral Camel -> draw_camel renderer fill outline
+  | Colored (_, kind) | Neutral kind -> draw_glyph_piece renderer kind fill outline
 
 let make_piece_texture renderer piece =
   let texture =
