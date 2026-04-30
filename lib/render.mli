@@ -33,7 +33,18 @@ val draw :
   ?hint:string ->
   ?selected:int * int ->
   ?targets:(int * int) list ->
+  ?flipped:bool ->
   t ->
   Board.t ->
   unit
-(** Draw the board and its piece images into the SDL window. *)
+(** Draw the board. When [flipped] is true the board renders from black's
+    perspective (black's home rank at the bottom). *)
+
+val draw_title : ?input:string -> ?status:string -> t -> unit
+(** Draw the title / main-menu screen. *)
+
+val draw_rules : t -> unit
+(** Draw the rules screen. *)
+
+val draw_multiplayer_menu : ?input:string -> ?status:string -> t -> unit
+(** Draw the multiplayer host/join selection screen. *)

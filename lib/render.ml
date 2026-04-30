@@ -100,6 +100,8 @@ let glyph_rows ch =
   | ')' -> [ "01000"; "00100"; "00010"; "00010"; "00010"; "00100"; "01000" ]
   | '-' -> [ "00000"; "00000"; "00000"; "01110"; "00000"; "00000"; "00000" ]
   | '?' -> [ "01110"; "10001"; "00001"; "00010"; "00100"; "00000"; "00100" ]
+  | '[' -> [ "01110"; "01000"; "01000"; "01000"; "01000"; "01000"; "01110" ]
+  | ']' -> [ "01110"; "00010"; "00010"; "00010"; "00010"; "00010"; "01110" ]
   | ' ' -> [ "00000"; "00000"; "00000"; "00000"; "00000"; "00000"; "00000" ]
   | _ -> [ "11111"; "00001"; "00010"; "00100"; "00100"; "00000"; "00100" ]
 
@@ -121,6 +123,27 @@ let draw_text renderer color ~x ~y text =
   String.iteri
     (fun index ch -> draw_glyph renderer color (x + (index * glyph_advance)) y ch)
     (String.uppercase_ascii text)
+
+let draw_glyph_scaled renderer color x y ch ~pixel =
+  List.iteri
+    (fun row pattern ->
+      String.iteri
+        (fun col px ->
+          if px = '1' then
+            fill_rect renderer color
+              ~x:(x + (col * pixel)) ~y:(y + (row * pixel))
+              ~w:pixel ~h:pixel)
+        pattern)
+    (glyph_rows ch)
+
+let draw_text_scaled renderer color ~x ~y ~pixel text =
+  let advance = (glyph_width * pixel) + pixel in
+  String.iteri
+    (fun i ch -> draw_glyph_scaled renderer color (x + (i * advance)) y ch ~pixel)
+    (String.uppercase_ascii text)
+
+let text_w ~pixel text = ((glyph_width * pixel) + pixel) * String.length text
+let center_text ~pixel text = (window_width - text_w ~pixel text) / 2
 
 let words text =
   text |> String.split_on_char ' ' |> List.filter (fun word -> word <> "")
@@ -398,7 +421,7 @@ let draw_target renderer x y occupied =
 
 let label_color = rgb 0xe5e7eb
 
-let draw_coordinate_labels renderer =
+let draw_coordinate_labels renderer ~flipped =
   let glyph_w = glyph_width * glyph_pixel in
   let glyph_h = glyph_height * glyph_pixel in
   let file_x col = margin + (col * cell_size) + ((cell_size - glyph_w) / 2) in
@@ -408,26 +431,28 @@ let draw_coordinate_labels renderer =
   let left_x = (margin - glyph_w) / 2 in
   let right_x = margin + board_pixels + ((margin - glyph_w) / 2) in
   for col = 0 to board_size - 1 do
-    let ch = Char.chr (Char.code 'A' + col) in
+    let lc = if flipped then board_size - 1 - col else col in
+    let ch = Char.chr (Char.code 'A' + lc) in
     draw_glyph renderer label_color (file_x col) top_y ch;
     draw_glyph renderer label_color (file_x col) bottom_y ch
   done;
   for row = 0 to board_size - 1 do
-    let ch = Char.chr (Char.code '0' + (board_size - row)) in
+    let lr = if flipped then board_size - 1 - row else row in
+    let ch = Char.chr (Char.code '0' + (board_size - lr)) in
     draw_glyph renderer label_color left_x (rank_y row) ch;
     draw_glyph renderer label_color right_x (rank_y row) ch
   done
 
 let draw ?(input = "") ?(status = "") ?(turn = "") ?(check = "")
     ?(check_squares = []) ?(hint = default_hint) ?selected ?(targets = [])
-    view board =
+    ?(flipped = false) view board =
   let renderer = view.renderer in
   fill_rect renderer (rgb 0x1f2933) ~x:0 ~y:0 ~w:window_width ~h:window_height;
-  draw_coordinate_labels renderer;
+  draw_coordinate_labels renderer ~flipped;
   for row = 0 to board_size - 1 do
     for col = 0 to board_size - 1 do
-      let x = margin + (col * cell_size) in
-      let y = margin + (row * cell_size) in
+      let x = margin + (if flipped then board_size - 1 - col else col) * cell_size in
+      let y = margin + (if flipped then board_size - 1 - row else row) * cell_size in
       let piece = get board row col in
       let color =
         if selected = Some (row, col) then rgb 0x77b77a
@@ -446,4 +471,120 @@ let draw ?(input = "") ?(status = "") ?(turn = "") ?(check = "")
     done
   done;
   draw_info_panel renderer ~input ~status ~turn ~check ~hint;
+  Sdl.render_present renderer
+
+let draw_menu_panel renderer ~input ~status ~hint =
+  let panel_x = margin in
+  let panel_y = margin + board_pixels + margin + 12 in
+  let panel_w = board_pixels in
+  let panel_h = info_height - 24 in
+  let text_x = panel_x + 18 in
+  let max_chars = max 1 ((panel_w - 36) / glyph_advance) in
+  fill_rect renderer (rgb 0x111827) ~x:panel_x ~y:panel_y ~w:panel_w ~h:panel_h;
+  draw_outline renderer (rgb 0x3b4252) ~x:panel_x ~y:panel_y ~w:panel_w ~h:panel_h;
+  let input_text =
+    if String.trim input = "" then "INPUT: TYPE AN OPTION"
+    else "INPUT: " ^ input
+  in
+  draw_text renderer (rgb 0xe5e7eb) ~x:text_x ~y:(panel_y + 16) (tail input_text max_chars);
+  (if String.trim status <> "" then
+    List.iteri
+      (fun i line ->
+        draw_text renderer (rgb 0xcbd5e1) ~x:text_x
+          ~y:(panel_y + 16 + line_advance + 10 + (i * line_advance)) line)
+      (wrap_text ~max_chars ("STATUS: " ^ status) |> List.filteri (fun i _ -> i < 2)));
+  draw_text renderer (rgb 0x94a3b8) ~x:text_x
+    ~y:(panel_y + 16 + (3 * line_advance) + 20) (tail hint max_chars)
+
+let draw_title ?(input = "") ?(status = "") view =
+  let renderer = view.renderer in
+  fill_rect renderer (rgb 0x1f2933) ~x:0 ~y:0 ~w:window_width ~h:window_height;
+  draw_text_scaled renderer (rgb 0xfbbf24)
+    ~x:(center_text ~pixel:6 "CAMEL CHESS") ~y:100 ~pixel:6 "CAMEL CHESS";
+  draw_text_scaled renderer (rgb 0x94a3b8)
+    ~x:(center_text ~pixel:3 "BY THE BARD RACCOONS") ~y:168 ~pixel:3 "BY THE BARD RACCOONS";
+  fill_rect renderer (rgb 0x3b4252)
+    ~x:margin ~y:204 ~w:(window_width - (2 * margin)) ~h:2;
+  Array.iteri
+    (fun i text ->
+      draw_text_scaled renderer (rgb 0xe5e7eb)
+        ~x:(center_text ~pixel:4 text) ~y:(300 + (i * 80)) ~pixel:4 text)
+    [| "1. SINGLEPLAYER"; "2. MULTIPLAYER"; "3. RULES" |];
+  draw_menu_panel renderer ~input ~status ~hint:"ENTER SELECTS.  ESC QUITS.";
+  Sdl.render_present renderer
+
+let draw_rules view =
+  let renderer = view.renderer in
+  fill_rect renderer (rgb 0x1f2933) ~x:0 ~y:0 ~w:window_width ~h:window_height;
+  draw_text_scaled renderer (rgb 0xfbbf24)
+    ~x:(center_text ~pixel:5 "RULES") ~y:60 ~pixel:5 "RULES";
+  fill_rect renderer (rgb 0x3b4252)
+    ~x:margin ~y:122 ~w:(window_width - (2 * margin)) ~h:2;
+  let text_x = margin + 18 in
+  let max_chars = max 1 ((window_width - (2 * margin) - 36) / glyph_advance) in
+  let max_y = margin + board_pixels - line_advance in
+  let y = ref 140 in
+  let put line =
+    if !y <= max_y then begin
+      draw_text renderer (rgb 0xe5e7eb) ~x:text_x ~y:!y line;
+      y := !y + line_advance
+    end
+  in
+  List.iter
+    (fun para ->
+      if para = "" then y := !y + (line_advance / 2)
+      else List.iter put (wrap_text ~max_chars para))
+    [ "CAMEL CHESS IS A PARODY OF DUCK CHESS. IN DUCK CHESS, A RUBBER DUCK SITS ON THE BOARD AS AN INVIOLABLE OBSTACLE. HERE, THE DUCK IS REPLACED BY A NEUTRAL CAMEL.";
+      "";
+      "ON EACH TURN: MOVE ONE OF YOUR PIECES, THEN MOVE THE CAMEL TO ANY EMPTY SQUARE. THE CAMEL BLOCKS ALL MOVEMENT AND CANNOT BE CAPTURED. THE GAME ENDS WHEN A KING IS TAKEN." ];
+  y := !y + (line_advance / 2);
+  draw_text renderer (rgb 0xfbbf24) ~x:text_x ~y:!y "COMMANDS:";
+  y := !y + line_advance + 4;
+  let commands = [
+    ("MOVE [FROM] [TO]", Some "MOVE E2 E4");
+    ("MOVE [TO]",        Some "MOVE E4");
+    ("[COORD]",          Some "E2");
+    ("IDENTIFY [COORD]", Some "IDENTIFY E2");
+    ("HELP",             None);
+    ("CLEAR",            None);
+  ] in
+  let cmd_x = text_x + 24 in
+  let max_syn = List.fold_left (fun a (s, _) -> max a (String.length s)) 0 commands in
+  let ex_x = cmd_x + (max_syn + 2) * glyph_advance in
+  List.iter
+    (fun (syntax, example) ->
+      if !y <= max_y then begin
+        draw_text renderer (rgb 0xe5e7eb) ~x:cmd_x ~y:!y syntax;
+        (match example with
+         | None    -> ()
+         | Some ex -> draw_text renderer (rgb 0x22d3ee) ~x:ex_x ~y:!y ex);
+        y := !y + line_advance
+      end)
+    commands;
+  draw_menu_panel renderer ~input:"" ~status:"" ~hint:"PRESS ENTER TO RETURN TO TITLE.";
+  Sdl.render_present renderer
+
+let draw_multiplayer_menu ?(input = "") ?(status = "") view =
+  let renderer = view.renderer in
+  fill_rect renderer (rgb 0x1f2933) ~x:0 ~y:0 ~w:window_width ~h:window_height;
+  draw_text_scaled renderer (rgb 0xfbbf24)
+    ~x:(center_text ~pixel:5 "MULTIPLAYER") ~y:80 ~pixel:5 "MULTIPLAYER";
+  fill_rect renderer (rgb 0x3b4252)
+    ~x:margin ~y:150 ~w:(window_width - (2 * margin)) ~h:2;
+  let text_x = margin + 18 in
+  let max_chars = max 1 ((window_width - (2 * margin) - 54) / glyph_advance) in
+  let y = ref 200 in
+  List.iter
+    (fun (heading, desc) ->
+      draw_text_scaled renderer (rgb 0xe5e7eb) ~x:text_x ~y:!y ~pixel:4 heading;
+      y := !y + 44;
+      List.iter
+        (fun line ->
+          draw_text renderer (rgb 0x94a3b8) ~x:(text_x + 24) ~y:!y line;
+          y := !y + line_advance)
+        (wrap_text ~max_chars desc);
+      y := !y + 36)
+    [ ("1. HOST GAME",  "YOU HOST. SHARE YOUR IP AND PORT WITH YOUR OPPONENT.");
+      ("2. JOIN GAME",  "ENTER YOUR OPPONENT'S IP ADDRESS TO CONNECT.") ];
+  draw_menu_panel renderer ~input ~status ~hint:"ENTER SELECTS.  ESC GOES BACK.";
   Sdl.render_present renderer
