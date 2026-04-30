@@ -31,6 +31,7 @@ val draw :
   ?check:string ->
   ?check_squares:(int * int) list ->
   ?hint:string ->
+  ?flipped:bool ->
   ?selected:int * int ->
   ?targets:(int * int) list ->
   t ->

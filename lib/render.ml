@@ -398,7 +398,7 @@ let draw_target renderer x y occupied =
 
 let label_color = rgb 0xe5e7eb
 
-let draw_coordinate_labels renderer =
+let draw_coordinate_labels renderer ~flipped =
   let glyph_w = glyph_width * glyph_pixel in
   let glyph_h = glyph_height * glyph_pixel in
   let file_x col = margin + (col * cell_size) + ((cell_size - glyph_w) / 2) in
@@ -408,34 +408,38 @@ let draw_coordinate_labels renderer =
   let left_x = (margin - glyph_w) / 2 in
   let right_x = margin + board_pixels + ((margin - glyph_w) / 2) in
   for col = 0 to board_size - 1 do
-    let ch = Char.chr (Char.code 'A' + col) in
+    let logical_col = if flipped then board_size - 1 - col else col in
+    let ch = Char.chr (Char.code 'A' + logical_col) in
     draw_glyph renderer label_color (file_x col) top_y ch;
     draw_glyph renderer label_color (file_x col) bottom_y ch
   done;
   for row = 0 to board_size - 1 do
-    let ch = Char.chr (Char.code '0' + (board_size - row)) in
+    let logical_row = if flipped then board_size - 1 - row else row in
+    let ch = Char.chr (Char.code '0' + (board_size - logical_row)) in
     draw_glyph renderer label_color left_x (rank_y row) ch;
     draw_glyph renderer label_color right_x (rank_y row) ch
   done
 
 let draw ?(input = "") ?(status = "") ?(turn = "") ?(check = "")
-    ?(check_squares = []) ?(hint = default_hint) ?selected ?(targets = [])
-    view board =
+    ?(check_squares = []) ?(hint = default_hint) ?(flipped = false) ?selected
+    ?(targets = []) view board =
   let renderer = view.renderer in
   fill_rect renderer (rgb 0x1f2933) ~x:0 ~y:0 ~w:window_width ~h:window_height;
-  draw_coordinate_labels renderer;
+  draw_coordinate_labels renderer ~flipped;
   for row = 0 to board_size - 1 do
     for col = 0 to board_size - 1 do
+      let lr = if flipped then board_size - 1 - row else row in
+      let lc = if flipped then board_size - 1 - col else col in
       let x = margin + (col * cell_size) in
       let y = margin + (row * cell_size) in
-      let piece = get board row col in
+      let piece = get board lr lc in
       let color =
-        if selected = Some (row, col) then rgb 0x77b77a
-        else if List.mem (row, col) check_squares then rgb 0xc24a4a
-        else square_color row col
+        if selected = Some (lr, lc) then rgb 0x77b77a
+        else if List.mem (lr, lc) check_squares then rgb 0xc24a4a
+        else square_color lr lc
       in
       fill_rect renderer color ~x ~y ~w:cell_size ~h:cell_size;
-      if List.mem (row, col) targets then
+      if List.mem (lr, lc) targets then
         draw_target renderer x y (piece <> None);
       match piece with
       | None -> ()

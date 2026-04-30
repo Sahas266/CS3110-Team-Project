@@ -119,9 +119,12 @@ let redraw window view st =
     if st.winner <> None then "TYPE EXIT OR RESTART."
     else "ENTER RUNS COMMAND. ESC QUITS."
   in
+  let flipped =
+    Camel_chess.Logic.turn_color st.turn = Camel_chess.Board.Black
+  in
   Camel_chess.Render.draw ~input:st.input ~status:st.status
     ~turn:(Camel_chess.Logic.turn_label st.turn) ~check:st.check
-    ~check_squares:st.check_squares ~hint ?selected:st.selected
+    ~check_squares:st.check_squares ~hint ~flipped ?selected:st.selected
     ~targets:st.targets view st.board
 
 let append_text st text =
