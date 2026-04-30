@@ -47,6 +47,19 @@ let find_camel board =
   done;
   !result
 
+let find_king board color =
+  let result = ref None in
+  for r = 0 to Board.board_size - 1 do
+    for c = 0 to Board.board_size - 1 do
+      if !result = None then
+        match Board.get board r c with
+        | Some (Board.Colored (c2, Board.King)) when c2 = color ->
+            result := Some (r, c)
+        | _ -> ()
+    done
+  done;
+  !result
+
 let parse_coordinate input =
   let s = String.trim (String.lowercase_ascii input) in
   if String.length s <> 2 then None
@@ -246,6 +259,31 @@ let apply_move board turn cmd =
            Board.set board dr dc (Some (Board.Neutral Board.Camel))
        | None -> ())
   | _ -> ()
+
+let is_attacked board (kr, kc) by_color =
+  let found = ref false in
+  for r = 0 to Board.board_size - 1 do
+    for c = 0 to Board.board_size - 1 do
+      if not !found then
+        match Board.get board r c with
+        | Some (Board.Colored (col, _)) when col = by_color ->
+            if List.mem (kr, kc) (valid_moves board r c) then found := true
+        | _ -> ()
+    done
+  done;
+  !found
+
+let checks board =
+  let for_color color =
+    match find_king board color with
+    | Some sq ->
+        let opp =
+          match color with Board.White -> Board.Black | Board.Black -> Board.White
+        in
+        if is_attacked board sq opp then Some sq else None
+    | None -> None
+  in
+  (for_color Board.White, for_color Board.Black)
 
 let evaluate_input board input =
   match parse_command input with

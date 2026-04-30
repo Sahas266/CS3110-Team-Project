@@ -7,7 +7,21 @@ type state = {
   selected : (int * int) option;
   targets : (int * int) list;
   turn : Camel_chess.Logic.turn;
+  check : string;
+  check_squares : (int * int) list;
 }
+
+let compute_check board =
+  let w, b = Camel_chess.Logic.checks board in
+  let squares = List.filter_map Fun.id [ w; b ] in
+  let msg =
+    match w, b with
+    | Some _, Some _ -> "Check on White and Black!"
+    | Some _, None -> "Check on White!"
+    | None, Some _ -> "Check on Black!"
+    | None, None -> ""
+  in
+  (msg, squares)
 
 let sdl context = function
   | Ok value -> value
@@ -30,11 +44,14 @@ let handle_command st =
       | Ok () ->
           Camel_chess.Logic.apply_move st.board st.turn cmd;
           let new_turn = Camel_chess.Logic.advance_turn st.turn in
+          let check, check_squares = compute_check st.board in
           { st with
             turn = new_turn;
             selected = None;
             targets = [];
-            status = Camel_chess.Logic.prompt_for new_turn }
+            status = Camel_chess.Logic.prompt_for new_turn;
+            check;
+            check_squares }
       | Error msg ->
           { st with selected = None; targets = []; status = msg })
   | _ ->
@@ -51,7 +68,8 @@ let clipped_title st =
 let redraw window view st =
   Sdl.set_window_title window (clipped_title st);
   Camel_chess.Render.draw ~input:st.input ~status:st.status
-    ~turn:(Camel_chess.Logic.turn_label st.turn) ?selected:st.selected
+    ~turn:(Camel_chess.Logic.turn_label st.turn) ~check:st.check
+    ~check_squares:st.check_squares ?selected:st.selected
     ~targets:st.targets view st.board
 
 let append_text st text =
@@ -128,6 +146,8 @@ let main () =
           selected = None;
           targets = [];
           turn;
+          check = "";
+          check_squares = [];
         }
       in
       Printf.printf "%s\n%!" initial_state.status;

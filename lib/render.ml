@@ -3,7 +3,7 @@ open Tsdl
 
 let cell_size = 80
 let margin = 36
-let info_height = 221
+let info_height = 252
 let board_pixels = board_size * cell_size
 let window_width = board_pixels + (2 * margin)
 let window_height = board_pixels + (2 * margin) + info_height
@@ -155,7 +155,7 @@ let tail text max_chars =
     let len = String.length text in
     if len <= max_chars then text else String.sub text (len - max_chars) max_chars
 
-let draw_info_panel renderer ~input ~status ~turn =
+let draw_info_panel renderer ~input ~status ~turn ~check =
   let panel_x = margin in
   let panel_y = margin + board_pixels + margin + 12 in
   let panel_w = board_pixels in
@@ -164,7 +164,8 @@ let draw_info_panel renderer ~input ~status ~turn =
   let turn_y = panel_y + 16 in
   let input_y = turn_y + line_advance + 10 in
   let status_y = input_y + line_advance + 10 in
-  let hint_y = status_y + (2 * line_advance) + 10 in
+  let check_y = status_y + (2 * line_advance) + 10 in
+  let hint_y = check_y + line_advance + 10 in
   let max_chars = max 1 ((panel_w - 36) / glyph_advance) in
   let turn_text =
     if String.trim turn = "" then "TURN: ?" else "TURN: " ^ turn
@@ -188,6 +189,8 @@ let draw_info_panel renderer ~input ~status ~turn =
       draw_text renderer (rgb 0xcbd5e1) ~x:text_x
         ~y:(status_y + (index * line_advance)) line)
     status_lines;
+  if String.trim check <> "" then
+    draw_text renderer (rgb 0xef4444) ~x:text_x ~y:check_y (tail check max_chars);
   draw_text renderer (rgb 0x94a3b8) ~x:text_x ~y:hint_y
     "ENTER RUNS COMMAND. ESC QUITS."
 
@@ -414,7 +417,8 @@ let draw_coordinate_labels renderer =
     draw_glyph renderer label_color right_x (rank_y row) ch
   done
 
-let draw ?(input = "") ?(status = "") ?(turn = "") ?selected ?(targets = []) view board =
+let draw ?(input = "") ?(status = "") ?(turn = "") ?(check = "")
+    ?(check_squares = []) ?selected ?(targets = []) view board =
   let renderer = view.renderer in
   fill_rect renderer (rgb 0x1f2933) ~x:0 ~y:0 ~w:window_width ~h:window_height;
   draw_coordinate_labels renderer;
@@ -425,6 +429,7 @@ let draw ?(input = "") ?(status = "") ?(turn = "") ?selected ?(targets = []) vie
       let piece = get board row col in
       let color =
         if selected = Some (row, col) then rgb 0x77b77a
+        else if List.mem (row, col) check_squares then rgb 0xc24a4a
         else square_color row col
       in
       fill_rect renderer color ~x ~y ~w:cell_size ~h:cell_size;
@@ -438,5 +443,5 @@ let draw ?(input = "") ?(status = "") ?(turn = "") ?selected ?(targets = []) vie
           sdl (Sdl.render_copy ~dst renderer texture)
     done
   done;
-  draw_info_panel renderer ~input ~status ~turn;
+  draw_info_panel renderer ~input ~status ~turn ~check;
   Sdl.render_present renderer

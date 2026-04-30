@@ -40,6 +40,15 @@ val advance_turn : turn -> turn
 val prompt_for : turn -> string
 val turn_label : turn -> string
 val find_camel : Board.t -> (int * int) option
+val find_king : Board.t -> Board.color -> (int * int) option
+
+val is_attacked : Board.t -> int * int -> Board.color -> bool
+(** [is_attacked board sq by_color] is true when some piece of [by_color] has
+    [sq] in its [valid_moves]. *)
+
+val checks : Board.t -> (int * int) option * (int * int) option
+(** Returns [(white_king_in_check, black_king_in_check)]. Each component is
+    [Some square] when that color's king is currently attacked, else [None]. *)
 
 val is_valid_move : Board.t -> turn -> command -> (unit, string) result
 (** Validates a [Move] or [Camel_move] against the current [turn]:

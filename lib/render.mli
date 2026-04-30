@@ -28,6 +28,8 @@ val draw :
   ?input:string ->
   ?status:string ->
   ?turn:string ->
+  ?check:string ->
+  ?check_squares:(int * int) list ->
   ?selected:int * int ->
   ?targets:(int * int) list ->
   t ->
