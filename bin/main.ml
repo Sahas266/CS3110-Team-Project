@@ -12,14 +12,45 @@ let drop_last_char s =
 
 let mp_port = 9876
 
-let local_ip () =
+let is_wsl () =
   try
-    let host = Unix.gethostname () in
-    let entry = Unix.gethostbyname host in
-    if Array.length entry.Unix.h_addr_list > 0 then
-      Unix.string_of_inet_addr entry.Unix.h_addr_list.(0)
-    else "127.0.0.1"
-  with _ -> "127.0.0.1"
+    let ic = open_in "/proc/version" in
+    let line = input_line ic in
+    close_in ic;
+    let low = String.lowercase_ascii line in
+    let contains s sub =
+      let slen = String.length s and n = String.length sub in
+      let rec go i = i <= slen - n && (String.sub s i n = sub || go (i + 1)) in
+      go 0
+    in
+    contains low "microsoft" || contains low "wsl"
+  with _ -> false
+
+let local_ip () =
+  let udp_try () =
+    try
+      let fd = Unix.socket Unix.PF_INET Unix.SOCK_DGRAM 0 in
+      Unix.connect fd (Unix.ADDR_INET (Unix.inet_addr_of_string "8.8.8.8", 80));
+      let addr = Unix.getsockname fd in
+      Unix.close fd;
+      match addr with
+      | Unix.ADDR_INET (a, _) -> Some (Unix.string_of_inet_addr a)
+      | _ -> None
+    with _ -> None
+  in
+  let powershell_try () =
+    try
+      let ic = Unix.open_process_in
+        {|powershell.exe -NoProfile -Command "(Get-NetIPAddress -AddressFamily IPv4 -PrefixOrigin Dhcp | Select-Object -First 1).IPAddress" 2>/dev/null|} in
+      let ip = String.trim (input_line ic) in
+      ignore (Unix.close_process_in ic);
+      if ip = "" || ip = "127.0.0.1" then None else Some ip
+    with _ -> None
+  in
+  if is_wsl () then
+    (match powershell_try () with Some ip -> ip | None -> "127.0.0.1")
+  else
+    (match udp_try () with Some ip -> ip | None -> "127.0.0.1")
 
 let create_server port =
   let fd = Unix.socket Unix.PF_INET Unix.SOCK_STREAM 0 in
