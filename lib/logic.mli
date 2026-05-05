@@ -30,7 +30,8 @@ val describe_square : Board.t -> int -> int -> string
 val valid_moves : Board.t -> int -> int -> (int * int) list
 (** [valid_moves board row col] returns the squares the piece at [(row, col)]
     can legally move to, respecting bounds and blocking. The neutral camel may
-    move to any empty square. *)
+    move to any empty square. Kings include castling destinations when allowed
+    by occupancy, castling rights, check, and attacked transit/landing squares. *)
 
 val describe_valid : Board.t -> int -> int -> (int * int) list -> string
 (** Status string for the valid-moves display. *)
@@ -43,8 +44,9 @@ val find_camel : Board.t -> (int * int) option
 val find_king : Board.t -> Board.color -> (int * int) option
 
 val is_attacked : Board.t -> int * int -> Board.color -> bool
-(** [is_attacked board sq by_color] is true when some piece of [by_color] has
-    [sq] in its [valid_moves]. *)
+(** [is_attacked board sq by_color] is true when some piece of [by_color] can
+    reach [sq] (same movement as [valid_moves] except kings never attack via
+    castling, which avoids cycles and matches standard attack detection). *)
 
 val checks : Board.t -> (int * int) option * (int * int) option
 (** Returns [(white_king_in_check, black_king_in_check)]. Each component is
