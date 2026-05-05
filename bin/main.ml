@@ -8,9 +8,76 @@ let drop_last_char s =
   let len = String.length s in
   if len = 0 then s else String.sub s 0 (len - 1)
 
+(* ── Networking ──────────────────────────────────────────────────────────── *)
+
+let mp_port = 9876
+
+let local_ip () =
+  try
+    let host = Unix.gethostname () in
+    let entry = Unix.gethostbyname host in
+    if Array.length entry.Unix.h_addr_list > 0 then
+      Unix.string_of_inet_addr entry.Unix.h_addr_list.(0)
+    else "127.0.0.1"
+  with _ -> "127.0.0.1"
+
+let create_server port =
+  let fd = Unix.socket Unix.PF_INET Unix.SOCK_STREAM 0 in
+  Unix.setsockopt fd Unix.SO_REUSEADDR true;
+  Unix.bind fd (Unix.ADDR_INET (Unix.inet_addr_any, port));
+  Unix.listen fd 1;
+  Unix.set_nonblock fd;
+  fd
+
+let poll_accept server_fd =
+  try
+    let (client_fd, _) = Unix.accept server_fd in
+    Unix.set_nonblock client_fd;
+    Some client_fd
+  with Unix.Unix_error (_, _, _) -> None
+
+let connect_to ip port =
+  let fd = Unix.socket Unix.PF_INET Unix.SOCK_STREAM 0 in
+  try
+    let addr = Unix.ADDR_INET (Unix.inet_addr_of_string ip, port) in
+    Unix.connect fd addr;
+    Unix.set_nonblock fd;
+    Ok fd
+  with
+  | Unix.Unix_error (e, _, _) ->
+      Unix.close fd; Error (Unix.error_message e)
+  | Failure msg | Invalid_argument msg ->
+      Unix.close fd; Error ("Invalid address: " ^ msg)
+
+let send_move fd cmd =
+  let msg = String.uppercase_ascii (String.trim cmd) ^ "\n" in
+  let b = Bytes.of_string msg in
+  (try ignore (Unix.send fd b 0 (Bytes.length b) []) with _ -> ())
+
+let try_read_line fd buf =
+  let tmp = Bytes.create 256 in
+  (try
+    let n = Unix.recv fd tmp 0 256 [] in
+    if n > 0 then Buffer.add_string buf (Bytes.sub_string tmp 0 n)
+  with Unix.Unix_error (_, _, _) -> ());
+  let s = Buffer.contents buf in
+  match String.index_opt s '\n' with
+  | None -> None
+  | Some i ->
+      let line = String.sub s 0 i in
+      let rest = String.sub s (i + 1) (String.length s - i - 1) in
+      Buffer.clear buf;
+      Buffer.add_string buf rest;
+      Some (String.trim line)
+
+let close_fd fd = (try Unix.close fd with _ -> ())
+
 (* ── Game state ─────────────────────────────────────────────────────────── *)
 
-type game_mode = Solo | Host | Client
+type game_mode =
+  | Solo
+  | Host   of Unix.file_descr
+  | Client of Unix.file_descr
 
 type game_state = {
   board         : Camel_chess.Board.t;
@@ -23,15 +90,18 @@ type game_state = {
   check         : string;
   check_squares : (int * int) list;
   winner        : Camel_chess.Board.color option;
+  recv_buf      : Buffer.t;
 }
 
 (* ── Screen ─────────────────────────────────────────────────────────────── *)
 
 type screen =
-  | Title          of { input : string; status : string }
+  | Title             of { input : string; status : string }
   | Rules
-  | Multiplayer_menu of { input : string; status : string }
-  | Game           of game_state
+  | Multiplayer_menu  of { input : string; status : string }
+  | Host_waiting      of { server_fd : Unix.file_descr; ip : string; port : int }
+  | Client_connecting of { input : string; status : string }
+  | Game              of game_state
 
 (* ── Helpers ─────────────────────────────────────────────────────────────── *)
 
@@ -63,13 +133,45 @@ let new_game mode =
   let turn  = Camel_chess.Logic.White_move in
   { board; input = ""; status = Camel_chess.Logic.prompt_for turn;
     selected = None; targets = []; turn; mode;
-    check = ""; check_squares = []; winner = None }
+    check = ""; check_squares = []; winner = None;
+    recv_buf = Buffer.create 256 }
 
 let is_flipped gs =
   match gs.mode with
-  | Solo   -> Camel_chess.Logic.turn_color gs.turn = Camel_chess.Board.Black
-  | Host   -> false
-  | Client -> true
+  | Solo     -> Camel_chess.Logic.turn_color gs.turn = Camel_chess.Board.Black
+  | Host _   -> false
+  | Client _ -> true
+
+let is_my_turn gs =
+  match gs.mode with
+  | Solo   -> true
+  | Host _ ->
+      (match gs.turn with
+       | Camel_chess.Logic.White_move | Camel_chess.Logic.White_camel -> true
+       | _ -> false)
+  | Client _ ->
+      (match gs.turn with
+       | Camel_chess.Logic.Black_move | Camel_chess.Logic.Black_camel -> true
+       | _ -> false)
+
+let apply_peer_move gs input =
+  match Camel_chess.Logic.parse_command input with
+  | (Camel_chess.Logic.Move _ | Camel_chess.Logic.Camel_move _) as cmd ->
+      (match Camel_chess.Logic.is_valid_move gs.board gs.turn cmd with
+       | Ok () ->
+           Camel_chess.Logic.apply_move gs.board gs.turn cmd;
+           (match detect_winner gs.board with
+            | Some color ->
+                { gs with check = checkmate_message color;
+                          check_squares = []; winner = Some color;
+                          status = "" }
+            | None ->
+                let new_turn = Camel_chess.Logic.advance_turn gs.turn in
+                let check, check_squares = compute_check gs.board in
+                { gs with turn = new_turn; check; check_squares;
+                          status = Camel_chess.Logic.prompt_for new_turn })
+       | Error _ -> gs)
+  | _ -> gs
 
 let handle_game_command gs =
   match Camel_chess.Logic.parse_command gs.input with
@@ -78,22 +180,28 @@ let handle_game_command gs =
       { gs with selected = Some (row, col); targets;
                 status = Camel_chess.Logic.describe_valid gs.board row col targets }
   | (Camel_chess.Logic.Move _ | Camel_chess.Logic.Camel_move _) as cmd ->
-      (match Camel_chess.Logic.is_valid_move gs.board gs.turn cmd with
-       | Ok () ->
-           Camel_chess.Logic.apply_move gs.board gs.turn cmd;
-           (match detect_winner gs.board with
-            | Some color ->
-                { gs with selected = None; targets = []; status = "";
-                          check = checkmate_message color;
-                          check_squares = []; winner = Some color }
-            | None ->
-                let new_turn = Camel_chess.Logic.advance_turn gs.turn in
-                let check, check_squares = compute_check gs.board in
-                { gs with turn = new_turn; selected = None; targets = [];
-                          status = Camel_chess.Logic.prompt_for new_turn;
-                          check; check_squares })
-       | Error msg ->
-           { gs with selected = None; targets = []; status = msg })
+      if not (is_my_turn gs) then
+        { gs with selected = None; targets = []; status = "Wait for your turn." }
+      else
+        (match Camel_chess.Logic.is_valid_move gs.board gs.turn cmd with
+         | Ok () ->
+             Camel_chess.Logic.apply_move gs.board gs.turn cmd;
+             (match gs.mode with
+              | Host fd | Client fd -> send_move fd gs.input
+              | Solo -> ());
+             (match detect_winner gs.board with
+              | Some color ->
+                  { gs with selected = None; targets = []; status = "";
+                            check = checkmate_message color;
+                            check_squares = []; winner = Some color }
+              | None ->
+                  let new_turn = Camel_chess.Logic.advance_turn gs.turn in
+                  let check, check_squares = compute_check gs.board in
+                  { gs with turn = new_turn; selected = None; targets = [];
+                            status = Camel_chess.Logic.prompt_for new_turn;
+                            check; check_squares })
+         | Error msg ->
+             { gs with selected = None; targets = []; status = msg })
   | _ ->
       { gs with selected = None; targets = [];
                 status = Camel_chess.Logic.evaluate_input gs.board gs.input }
@@ -107,20 +215,22 @@ let append_text_screen screen text =
   let s = text |> String.to_seq |> Seq.filter keep |> String.of_seq in
   if s = "" then screen
   else match screen with
-  | Title { input; status }            -> Title { input = input ^ s; status }
-  | Multiplayer_menu { input; status } -> Multiplayer_menu { input = input ^ s; status }
-  | Game gs                            -> Game { gs with input = gs.input ^ s }
-  | other                              -> other
+  | Title { input; status }             -> Title { input = input ^ s; status }
+  | Multiplayer_menu { input; status }  -> Multiplayer_menu { input = input ^ s; status }
+  | Client_connecting { input; status } -> Client_connecting { input = input ^ s; status }
+  | Game gs                             -> Game { gs with input = gs.input ^ s }
+  | other                               -> other
 
 (* ── Key handling ────────────────────────────────────────────────────────── *)
 
 let handle_key key screen =
   if key = Sdl.K.backspace then
     (match screen with
-     | Title { input; status }            -> Title { input = drop_last_char input; status }
-     | Multiplayer_menu { input; status } -> Multiplayer_menu { input = drop_last_char input; status }
-     | Game gs                            -> Game { gs with input = drop_last_char gs.input }
-     | Rules                              -> Rules)
+     | Title { input; status }             -> Title { input = drop_last_char input; status }
+     | Multiplayer_menu { input; status }  -> Multiplayer_menu { input = drop_last_char input; status }
+     | Client_connecting { input; status } -> Client_connecting { input = drop_last_char input; status }
+     | Game gs                             -> Game { gs with input = drop_last_char gs.input }
+     | Rules | Host_waiting _              -> screen)
   else if key = Sdl.K.return then
     (match screen with
      | Title { input; _ } ->
@@ -132,12 +242,26 @@ let handle_key key screen =
      | Rules -> Title { input = ""; status = "" }
      | Multiplayer_menu { input; _ } ->
          (match String.trim (String.lowercase_ascii input) with
-          | "1" | "host"             ->
-              Multiplayer_menu { input = ""; status = "HOST MODE COMING SOON." }
+          | "1" | "host" ->
+              (try
+                 let server_fd = create_server mp_port in
+                 Host_waiting { server_fd; ip = local_ip (); port = mp_port }
+               with Unix.Unix_error (e, _, _) ->
+                 Multiplayer_menu { input = "";
+                   status = "Could not open port: " ^ Unix.error_message e })
           | "2" | "join" | "connect" ->
-              Multiplayer_menu { input = ""; status = "JOIN MODE COMING SOON." }
+              Client_connecting { input = ""; status = "" }
           | _ ->
               Multiplayer_menu { input = ""; status = "TYPE 1 OR 2 AND PRESS ENTER." })
+     | Client_connecting { input; _ } ->
+         let ip = String.trim input in
+         if ip = "" then
+           Client_connecting { input = ""; status = "Enter an IP address." }
+         else
+           (match connect_to ip mp_port with
+            | Ok fd    -> Game (new_game (Client fd))
+            | Error msg -> Client_connecting { input = ""; status = msg })
+     | Host_waiting _ -> screen
      | Game gs ->
          let updated = handle_game_command gs in
          report gs.input updated.status;
@@ -156,16 +280,26 @@ let handle_event event screen : [ `Quit | `Continue of screen ] =
       let key = Sdl.Event.(get event keyboard_keycode) in
       if key = Sdl.K.escape then
         (match screen with
-         | Title _ | Game _ -> `Quit
-         | Rules | Multiplayer_menu _ ->
+         | Title _ -> `Quit
+         | Game { mode = Host fd; _ } | Game { mode = Client fd; _ } ->
+             close_fd fd; `Quit
+         | Game _ -> `Quit
+         | Host_waiting { server_fd; _ } ->
+             close_fd server_fd;
+             `Continue (Title { input = ""; status = "" })
+         | Rules | Multiplayer_menu _ | Client_connecting _ ->
              `Continue (Title { input = ""; status = "" }))
       else if key = Sdl.K.return then
         (match screen with
          | Game gs when gs.winner <> None ->
              (match String.trim (String.lowercase_ascii gs.input) with
-              | "exit" -> `Quit
+              | "exit" ->
+                  (match gs.mode with
+                   | Host fd | Client fd -> close_fd fd
+                   | Solo -> ());
+                  `Quit
               | "restart" ->
-                  let fresh = new_game gs.mode in
+                  let fresh = new_game Solo in
                   report gs.input fresh.status;
                   `Continue (Game fresh)
               | _ ->
@@ -194,6 +328,12 @@ let redraw window view screen =
   | Multiplayer_menu { input; status } ->
       Sdl.set_window_title window "Camel Chess - Multiplayer";
       Camel_chess.Render.draw_multiplayer_menu ~input ~status view
+  | Host_waiting { ip; port; _ } ->
+      Sdl.set_window_title window "Camel Chess - Hosting";
+      Camel_chess.Render.draw_host_waiting ~ip ~port view
+  | Client_connecting { input; status } ->
+      Sdl.set_window_title window "Camel Chess - Join Game";
+      Camel_chess.Render.draw_client_connecting ~input ~status view
   | Game gs ->
       Sdl.set_window_title window (clipped_title gs);
       let hint =
@@ -205,6 +345,42 @@ let redraw window view screen =
         ~check_squares:gs.check_squares ~hint ?selected:gs.selected
         ~targets:gs.targets ~flipped:(is_flipped gs) view gs.board
 
+(* ── Network polling (called each frame) ────────────────────────────────── *)
+
+let rec poll_screen screen =
+  match screen with
+  | Host_waiting { server_fd; ip = _; port = _ } ->
+      (match poll_accept server_fd with
+       | None -> screen
+       | Some client_fd ->
+           Unix.close server_fd;
+           Game (new_game (Host client_fd)))
+  | Game gs ->
+      let fd_opt = match gs.mode with
+        | Host fd | Client fd -> Some fd
+        | Solo                -> None
+      in
+      let peer_turn = match gs.mode with
+        | Host _   ->
+            (match gs.turn with
+             | Camel_chess.Logic.Black_move | Camel_chess.Logic.Black_camel -> true
+             | _ -> false)
+        | Client _ ->
+            (match gs.turn with
+             | Camel_chess.Logic.White_move | Camel_chess.Logic.White_camel -> true
+             | _ -> false)
+        | Solo -> false
+      in
+      (match fd_opt with
+       | Some fd when peer_turn ->
+           (match try_read_line fd gs.recv_buf with
+            | None -> screen
+            | Some line ->
+                let updated = apply_peer_move gs line in
+                poll_screen (Game { updated with input = "" }))
+       | _ -> screen)
+  | other -> other
+
 let rec pump_events event screen =
   if Sdl.poll_event (Some event) then
     match handle_event event screen with
@@ -213,6 +389,7 @@ let rec pump_events event screen =
   else `Continue screen
 
 let rec event_loop window view event screen =
+  let screen = poll_screen screen in
   redraw window view screen;
   match pump_events event screen with
   | `Quit -> ()

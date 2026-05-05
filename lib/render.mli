@@ -48,3 +48,9 @@ val draw_rules : t -> unit
 
 val draw_multiplayer_menu : ?input:string -> ?status:string -> t -> unit
 (** Draw the multiplayer host/join selection screen. *)
+
+val draw_host_waiting : ip:string -> port:int -> t -> unit
+(** Draw the hosting screen while waiting for a client to connect. *)
+
+val draw_client_connecting : ?input:string -> ?status:string -> t -> unit
+(** Draw the join-game screen where the player enters the host IP. *)

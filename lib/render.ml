@@ -100,6 +100,7 @@ let glyph_rows ch =
   | ')' -> [ "01000"; "00100"; "00010"; "00010"; "00010"; "00100"; "01000" ]
   | '-' -> [ "00000"; "00000"; "00000"; "01110"; "00000"; "00000"; "00000" ]
   | '?' -> [ "01110"; "10001"; "00001"; "00010"; "00100"; "00000"; "00100" ]
+  | '\'' -> [ "00100"; "00100"; "01000"; "00000"; "00000"; "00000"; "00000" ]
   | '[' -> [ "01110"; "01000"; "01000"; "01000"; "01000"; "01000"; "01110" ]
   | ']' -> [ "01110"; "00010"; "00010"; "00010"; "00010"; "00010"; "01110" ]
   | ' ' -> [ "00000"; "00000"; "00000"; "00000"; "00000"; "00000"; "00000" ]
@@ -587,4 +588,44 @@ let draw_multiplayer_menu ?(input = "") ?(status = "") view =
     [ ("1. HOST GAME",  "YOU HOST. SHARE YOUR IP AND PORT WITH YOUR OPPONENT.");
       ("2. JOIN GAME",  "ENTER YOUR OPPONENT'S IP ADDRESS TO CONNECT.") ];
   draw_menu_panel renderer ~input ~status ~hint:"ENTER SELECTS.  ESC GOES BACK.";
+  Sdl.render_present renderer
+
+let draw_host_waiting ~ip ~port view =
+  let renderer = view.renderer in
+  fill_rect renderer (rgb 0x1f2933) ~x:0 ~y:0 ~w:window_width ~h:window_height;
+  draw_text_scaled renderer (rgb 0xfbbf24)
+    ~x:(center_text ~pixel:5 "HOSTING") ~y:60 ~pixel:5 "HOSTING";
+  fill_rect renderer (rgb 0x3b4252)
+    ~x:margin ~y:122 ~w:(window_width - (2 * margin)) ~h:2;
+  let text_x = margin + 18 in
+  draw_text_scaled renderer (rgb 0xe5e7eb)
+    ~x:(center_text ~pixel:3 "WAITING FOR OPPONENT...") ~y:150
+    ~pixel:3 "WAITING FOR OPPONENT...";
+  draw_text renderer (rgb 0x94a3b8) ~x:text_x ~y:210 "YOU ARE PLAYING AS WHITE.";
+  draw_text renderer (rgb 0x94a3b8) ~x:text_x ~y:235 "SHARE YOUR ADDRESS";
+  draw_text renderer (rgb 0x94a3b8) ~x:text_x ~y:(235 + line_advance) "WITH YOUR OPPONENT:";
+  draw_text_scaled renderer (rgb 0x22d3ee)
+    ~x:text_x ~y:(275 + line_advance) ~pixel:4 ("IP:  " ^ ip);
+  draw_text_scaled renderer (rgb 0x22d3ee)
+    ~x:text_x ~y:(335 + line_advance) ~pixel:4 ("PORT:  " ^ string_of_int port);
+  draw_text renderer (rgb 0x94a3b8) ~x:text_x ~y:(410 + line_advance) "YOUR OPPONENT SHOULD:";
+  List.iteri
+    (fun i s -> draw_text renderer (rgb 0xe5e7eb) ~x:(text_x + 18) ~y:(435 + line_advance + (i * line_advance)) s)
+    [ "1. RUN CAMEL CHESS"; "2. SELECT MULTIPLAYER";
+      "3. SELECT JOIN GAME"; "4. ENTER YOUR IP" ];
+  draw_menu_panel renderer ~input:"" ~status:"" ~hint:"PRESS ESC TO CANCEL.";
+  Sdl.render_present renderer
+
+let draw_client_connecting ?(input = "") ?(status = "") view =
+  let renderer = view.renderer in
+  fill_rect renderer (rgb 0x1f2933) ~x:0 ~y:0 ~w:window_width ~h:window_height;
+  draw_text_scaled renderer (rgb 0xfbbf24)
+    ~x:(center_text ~pixel:5 "JOIN GAME") ~y:60 ~pixel:5 "JOIN GAME";
+  fill_rect renderer (rgb 0x3b4252)
+    ~x:margin ~y:122 ~w:(window_width - (2 * margin)) ~h:2;
+  let text_x = margin + 18 in
+  draw_text renderer (rgb 0xe5e7eb) ~x:text_x ~y:160 "YOU ARE PLAYING AS BLACK.";
+  draw_text renderer (rgb 0x94a3b8) ~x:text_x ~y:200 "ENTER YOUR HOST'S IP ADDRESS";
+  draw_text renderer (rgb 0x94a3b8) ~x:text_x ~y:(200 + line_advance) "AND PRESS ENTER:";
+  draw_menu_panel renderer ~input ~status ~hint:"ENTER TO CONNECT.  ESC GOES BACK.";
   Sdl.render_present renderer
