@@ -21,6 +21,13 @@ type piece =
 type square = piece option
 (** A board square either contains a piece or is empty. *)
 
+type castling = {
+  white_kingside : bool;
+  white_queenside : bool;
+  black_kingside : bool;
+  black_queenside : bool;
+}
+
 type t
 (** Abstract board type.
 
@@ -31,7 +38,7 @@ val board_size : int
 (** Number of files/ranks on the board. *)
 
 val empty : unit -> t
-(** Create an empty board. *)
+(** Create an empty board with no castling rights. *)
 
 val in_bounds : int -> int -> bool
 (** [in_bounds row col] is [true] when [(row, col)] is a valid coordinate. *)
@@ -51,9 +58,12 @@ val is_occupied : t -> int -> int -> bool
 
   Raises [Invalid_argument] when the coordinate is out of bounds. *)
 
+val get_castling : t -> castling
+val set_castling : t -> castling -> unit
+
 val initial : unit -> t
 (** Initial Camel Chess setup.
 
     Standard chess pieces are placed in their usual starting squares, and a
   neutral camel (represented as [Neutral Camel]) is placed at the board
-    center. *)
+    center. All four castling rights are [true]. *)
