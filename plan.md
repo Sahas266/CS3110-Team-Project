@@ -24,6 +24,7 @@ A chess variant where a neutral, immortal camel must be relocated each turn.
 - [x] `find_camel` — locates neutral camel on the board
 - [x] `is_valid_move` — phase match + color ownership + `valid_moves` membership
 - [x] `apply_move` — mutates the board for piece or camel relocation
+- [x] **Castling** (kingside + queenside): `Board.castling` rights record, `get_castling`/`set_castling`, `valid_moves` for King includes castling destinations only when occupancy/rights/check/transit-attack are all clear; `apply_move` moves the rook, clears the rights, blocks `is_attacked` from recursing through castling
 
 ### UI / rendering (TSDL)
 - [x] Migrated from Notty to TSDL (commits 6d164c8, 2bcdac2)
@@ -40,8 +41,20 @@ A chess variant where a neutral, immortal camel must be relocated each turn.
 - [x] Scaled-text helpers (`draw_text_scaled`, `center_text`) for headings
 - [x] Title / main-menu screen with Singleplayer / Multiplayer / Rules options
 - [x] Rules screen explaining variant + command syntax
-- [x] Multiplayer mode-select screen (placeholder; Host / Join not yet wired)
+- [x] Multiplayer mode-select screen (Host / Join)
+- [x] Host-waiting screen (`draw_host_waiting`) showing local IP + port while listening
+- [x] Client-connecting screen (`draw_client_connecting`) for entering a host IP
 - [x] **Board flip**: in Solo mode the board rotates 180° so the side to move faces the player; Host fixed white-facing, Client fixed black-facing
+- [x] Extra glyphs: `[`, `]`, `!`, `_`, `'`
+
+### Multiplayer (TCP)
+- [x] `Host` opens a TCP listener on port 9876, shows local IP, accepts one client (non-blocking poll)
+- [x] `Client` connects to a host IP, transitions to game on success
+- [x] Local IP detection with WSL fallback that shells out to PowerShell `Get-NetIPAddress`
+- [x] Per-move sync: each side sends its move string, peer applies it via `apply_peer_move`
+- [x] `is_my_turn` gating — input on the wrong side is rejected with "Wait for your turn."
+- [x] `recv_buf` buffered line-based protocol (`try_read_line`)
+- [x] Connection lifecycle: `create_server`, `poll_accept`, `connect_to`, `send_move`, `close_fd`
 
 ### Check / checkmate
 - [x] `find_king`, `is_attacked`, `checks` in `Logic`
@@ -57,6 +70,7 @@ A chess variant where a neutral, immortal camel must be relocated each turn.
 - [x] `is_occupied` happy + out-of-bounds path
 - [x] `parse_coordinate` / `parse_command` basics
 - [x] `evaluate_input` for `identify` on occupied + empty squares
+- [x] Castling suite: kingside legal in clean fixture, blocked by occupancy on f1, blocked when king is in check, blocked when transit square is attacked, blocked when rights flag is off, `apply_move` correctly moves rook and clears both rights
 
 ### Project scaffolding
 - [x] dune-project, lib/bin/test dune files
@@ -78,18 +92,16 @@ A chess variant where a neutral, immortal camel must be relocated each turn.
 > **Corollary:** The king is allowed to move into check (i.e. onto a square attacked by the opponent). It's simply a losing blunder — the opponent captures it next turn — rather than an illegal move. Players are responsible for their own king's safety.
 
 - [ ] Pawn promotion (reach last rank → choose piece)
-- [ ] Castling (king/rook unmoved, path clear)
 - [ ] En passant
 - [ ] Captured-piece tracking
 - [ ] Enforce camel-immortality defensively (today enforced only via `valid_moves` never returning a square occupied by a piece — confirm no path can replace the camel)
 - [ ] Move history + `undo`
 
-### Multiplayer
-- [ ] Wire Host mode: open a TCP listener, accept opponent, exchange moves
-- [ ] Wire Client / Join mode: connect to a host and exchange moves
-- [ ] Network protocol for moves, resigns, restart, disconnect
-- [ ] Reject input on the side that isn't the active player
-- [ ] Surface connection status / errors in the info panel
+### Multiplayer follow-ups
+- [ ] Network protocol extensions: resign, restart, graceful disconnect notice
+- [ ] Surface connection drops / socket errors in the info panel rather than failing silently
+- [ ] Configurable port (currently hard-coded to 9876)
+- [ ] Multiplayer game-over: handle `restart` collaboratively (currently each side restarts independently)
 
 ### UI polish
 - [ ] Show captured pieces / material count
