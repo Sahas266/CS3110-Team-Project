@@ -11,6 +11,7 @@ type command =
   | Valid of (int * int)
   | Move of (int * int) * (int * int)
   | Camel_move of (int * int)
+  | Promote of Board.kind
   | Unknown
 
 let turn_color = function
@@ -98,6 +99,13 @@ let parse_command input =
       match parse_coordinate dst with
       | Some d -> Camel_move d
       | None -> Unknown)
+  | [ "promote"; arg ] -> (
+      match arg with
+      | "q" | "queen" -> Promote Board.Queen
+      | "r" | "rook" -> Promote Board.Rook
+      | "b" | "bishop" -> Promote Board.Bishop
+      | "n" | "knight" -> Promote Board.Knight
+      | _ -> Unknown)
   | _ -> Unknown
 
 let kind_name = function
@@ -234,6 +242,11 @@ let rec moves_from board row col ~with_castling =
                 match Board.get board r c with
                 | Some (Board.Colored (c2, _)) when c2 <> color ->
                     acc := (r, c) :: !acc
+                | None ->
+                    (match Board.get_en_passant board with
+                     | Some (er, ec) when er = r && ec = c ->
+                         acc := (r, c) :: !acc
+                     | _ -> ())
                 | _ -> ())
             [ -1; 1 ];
           !acc
@@ -406,8 +419,25 @@ let apply_move board turn cmd =
       match Board.get board sr sc with
       | None -> ()
       | Some piece ->
+          let prev_ep = Board.get_en_passant board in
           clear_castling_for_capture_on_corner board dr dc;
           clear_castling_for_moving_piece board sr sc piece;
+          let is_pawn =
+            match piece with
+            | Board.Colored (_, Board.Pawn) -> true
+            | _ -> false
+          in
+          let is_double_step = is_pawn && abs (dr - sr) = 2 && sc = dc in
+          let is_en_passant_capture =
+            is_pawn && sc <> dc
+            &&
+            match prev_ep with
+            | Some (er, ec) -> er = dr && ec = dc
+            | None -> false
+          in
+          (if is_double_step then
+             Board.set_en_passant board (Some ((sr + dr) / 2, sc))
+           else Board.set_en_passant board None);
           let is_castle =
             match piece with
             | Board.Colored (_, Board.King) ->
@@ -432,7 +462,8 @@ let apply_move board turn cmd =
           end
           else begin
             Board.set board sr sc None;
-            Board.set board dr dc (Some piece)
+            Board.set board dr dc (Some piece);
+            if is_en_passant_capture then Board.set board sr dc None
           end)
   | (White_camel | Black_camel), Camel_move (dr, dc) -> (
       match find_camel board with
@@ -456,6 +487,32 @@ let checks board =
   in
   (for_color Board.White, for_color Board.Black)
 
+let pending_promotion board =
+  let result = ref None in
+  for r = 0 to Board.board_size - 1 do
+    for c = 0 to Board.board_size - 1 do
+      if !result = None then
+        match Board.get board r c with
+        | Some (Board.Colored (Board.White, Board.Pawn)) when r = 0 ->
+            result := Some (r, c)
+        | Some (Board.Colored (Board.Black, Board.Pawn)) when r = 7 ->
+            result := Some (r, c)
+        | _ -> ()
+    done
+  done;
+  !result
+
+let promote_pawn board (r, c) kind =
+  match Board.get board r c with
+  | Some (Board.Colored (color, Board.Pawn)) ->
+      let target =
+        match kind with
+        | Board.Queen | Board.Rook | Board.Bishop | Board.Knight -> kind
+        | _ -> Board.Queen
+      in
+      Board.set board r c (Some (Board.Colored (color, target)))
+  | _ -> ()
+
 let evaluate_input board input =
   match parse_command input with
   | Help ->
@@ -463,5 +520,5 @@ let evaluate_input board input =
   | Clear -> "Cleared."
   | Identify (row, col) -> describe_square board row col
   | Valid _ -> ""
-  | Move _ | Camel_move _ -> ""
+  | Move _ | Camel_move _ | Promote _ -> ""
   | Unknown -> "Unknown input. EX: MOVE E2 E4. Type HELP for all commands"

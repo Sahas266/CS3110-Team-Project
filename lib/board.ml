@@ -30,6 +30,7 @@ type t = {
   mutable white_queenside : bool;
   mutable black_kingside : bool;
   mutable black_queenside : bool;
+  mutable en_passant : (int * int) option;
 }
 
 let board_size = 8
@@ -48,6 +49,9 @@ let set_castling (b : t) (c : castling) =
   b.black_kingside <- c.black_kingside;
   b.black_queenside <- c.black_queenside
 
+let get_en_passant b = b.en_passant
+let set_en_passant b ep = b.en_passant <- ep
+
 let empty () =
   {
     squares = Array.make_matrix board_size board_size None;
@@ -55,6 +59,7 @@ let empty () =
     white_queenside = false;
     black_kingside = false;
     black_queenside = false;
+    en_passant = None;
   }
 
 let in_bounds row col =

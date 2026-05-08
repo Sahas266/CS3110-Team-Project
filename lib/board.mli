@@ -64,6 +64,12 @@ val get_castling : t -> castling
 val set_castling : t -> castling -> unit
 (** [set_castling board rights] overwrites castling rights on [board]. *)
 
+val get_en_passant : t -> (int * int) option
+(** Square that a pawn just skipped over via a double-step, or [None]. *)
+
+val set_en_passant : t -> (int * int) option -> unit
+(** Set the en passant target square. *)
+
 val initial : unit -> t
 (** Initial Camel Chess setup.
 

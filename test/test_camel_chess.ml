@@ -947,6 +947,174 @@ let render_tests =
                render_teardown window renderer );
        ]
 
+let promotion_tests =
+  "promotion"
+  >::: [
+         ( "pending_promotion empty" >:: fun _ ->
+           let b = B.initial () in
+           assert_equal None (L.pending_promotion b) );
+         ( "pending_promotion white pawn at rank 8" >:: fun _ ->
+           let b = B.empty () in
+           B.set b 0 4 (Some (B.Colored (B.White, B.Pawn)));
+           assert_equal (Some (0, 4)) (L.pending_promotion b) );
+         ( "pending_promotion black pawn at rank 1" >:: fun _ ->
+           let b = B.empty () in
+           B.set b 7 4 (Some (B.Colored (B.Black, B.Pawn)));
+           assert_equal (Some (7, 4)) (L.pending_promotion b) );
+         ( "pending_promotion ignores pawn mid-board" >:: fun _ ->
+           let b = B.empty () in
+           B.set b 4 4 (Some (B.Colored (B.White, B.Pawn)));
+           assert_equal None (L.pending_promotion b) );
+         ( "promote_pawn to queen preserves color" >:: fun _ ->
+           let b = B.empty () in
+           B.set b 0 4 (Some (B.Colored (B.White, B.Pawn)));
+           L.promote_pawn b (0, 4) B.Queen;
+           assert_equal
+             (Some (B.Colored (B.White, B.Queen)))
+             (B.get b 0 4) );
+         ( "promote_pawn to knight" >:: fun _ ->
+           let b = B.empty () in
+           B.set b 7 4 (Some (B.Colored (B.Black, B.Pawn)));
+           L.promote_pawn b (7, 4) B.Knight;
+           assert_equal
+             (Some (B.Colored (B.Black, B.Knight)))
+             (B.get b 7 4) );
+         ( "promote_pawn to rook" >:: fun _ ->
+           let b = B.empty () in
+           B.set b 0 0 (Some (B.Colored (B.White, B.Pawn)));
+           L.promote_pawn b (0, 0) B.Rook;
+           assert_equal
+             (Some (B.Colored (B.White, B.Rook)))
+             (B.get b 0 0) );
+         ( "promote_pawn to bishop" >:: fun _ ->
+           let b = B.empty () in
+           B.set b 0 0 (Some (B.Colored (B.White, B.Pawn)));
+           L.promote_pawn b (0, 0) B.Bishop;
+           assert_equal
+             (Some (B.Colored (B.White, B.Bishop)))
+             (B.get b 0 0) );
+         ( "promote_pawn to king coerces to queen" >:: fun _ ->
+           let b = B.empty () in
+           B.set b 0 4 (Some (B.Colored (B.White, B.Pawn)));
+           L.promote_pawn b (0, 4) B.King;
+           assert_equal
+             (Some (B.Colored (B.White, B.Queen)))
+             (B.get b 0 4) );
+         ( "promote_pawn no-op without a pawn" >:: fun _ ->
+           let b = B.empty () in
+           B.set b 0 4 (Some (B.Colored (B.White, B.Knight)));
+           L.promote_pawn b (0, 4) B.Queen;
+           assert_equal
+             (Some (B.Colored (B.White, B.Knight)))
+             (B.get b 0 4) );
+         ( "parse_command promote q / queen" >:: fun _ ->
+           assert_equal (L.Promote B.Queen) (L.parse_command "promote q");
+           assert_equal (L.Promote B.Queen) (L.parse_command "promote queen") );
+         ( "parse_command promote r / rook" >:: fun _ ->
+           assert_equal (L.Promote B.Rook) (L.parse_command "promote r");
+           assert_equal (L.Promote B.Rook) (L.parse_command "promote rook") );
+         ( "parse_command promote b / bishop" >:: fun _ ->
+           assert_equal (L.Promote B.Bishop) (L.parse_command "promote b");
+           assert_equal (L.Promote B.Bishop)
+             (L.parse_command "promote bishop") );
+         ( "parse_command promote n / knight" >:: fun _ ->
+           assert_equal (L.Promote B.Knight) (L.parse_command "promote n");
+           assert_equal (L.Promote B.Knight)
+             (L.parse_command "promote knight") );
+         ( "parse_command promote unknown" >:: fun _ ->
+           assert_equal L.Unknown (L.parse_command "promote x") );
+         ( "evaluate_input promote returns empty" >:: fun _ ->
+           let b = B.initial () in
+           assert_equal "" (L.evaluate_input b "promote q") );
+       ]
+
+let en_passant_tests =
+  "en_passant"
+  >::: [
+         ( "double-step sets en_passant target" >:: fun _ ->
+           let b = B.initial () in
+           L.apply_move b L.White_move (L.Move ((6, 4), (4, 4)));
+           assert_equal (Some (5, 4)) (B.get_en_passant b) );
+         ( "single step doesn't set en_passant" >:: fun _ ->
+           let b = B.initial () in
+           L.apply_move b L.White_move (L.Move ((6, 4), (5, 4)));
+           assert_equal None (B.get_en_passant b) );
+         ( "non-pawn move clears en_passant" >:: fun _ ->
+           let b = B.initial () in
+           B.set_en_passant b (Some (5, 4));
+           L.apply_move b L.White_move (L.Move ((7, 6), (5, 5)));
+           assert_equal None (B.get_en_passant b) );
+         ( "camel relocation preserves en_passant" >:: fun _ ->
+           let b = B.initial () in
+           B.set_en_passant b (Some (5, 4));
+           L.apply_move b L.White_camel (L.Camel_move (4, 4));
+           assert_equal (Some (5, 4)) (B.get_en_passant b) );
+         ( "white pawn sees en_passant capture in valid_moves" >:: fun _ ->
+           let b = B.empty () in
+           B.set b 3 4 (Some (B.Colored (B.White, B.Pawn)));
+           B.set b 3 5 (Some (B.Colored (B.Black, B.Pawn)));
+           B.set_en_passant b (Some (2, 5));
+           let moves = L.valid_moves b 3 4 in
+           assert_bool "diagonal-to-ep target"
+             (List.mem (2, 5) moves) );
+         ( "black pawn sees en_passant capture" >:: fun _ ->
+           let b = B.empty () in
+           B.set b 4 4 (Some (B.Colored (B.Black, B.Pawn)));
+           B.set b 4 3 (Some (B.Colored (B.White, B.Pawn)));
+           B.set_en_passant b (Some (5, 3));
+           let moves = L.valid_moves b 4 4 in
+           assert_bool "diagonal-to-ep target"
+             (List.mem (5, 3) moves) );
+         ( "no diagonal move when ep is unrelated" >:: fun _ ->
+           let b = B.empty () in
+           B.set b 3 4 (Some (B.Colored (B.White, B.Pawn)));
+           B.set_en_passant b (Some (0, 0));
+           let moves = L.valid_moves b 3 4 in
+           assert_bool "no e-p" (not (List.mem (2, 5) moves)) );
+         ( "diagonal blocked by own piece exercises fallthrough" >:: fun _ ->
+           let b = B.empty () in
+           B.set b 3 4 (Some (B.Colored (B.White, B.Pawn)));
+           B.set b 2 5 (Some (B.Colored (B.White, B.Knight)));
+           let moves = L.valid_moves b 3 4 in
+           assert_bool "no own-square capture"
+             (not (List.mem (2, 5) moves)) );
+         ( "en_passant capture removes the captured pawn" >:: fun _ ->
+           let b = B.empty () in
+           (* Set up: white pawn just doubled to e5; it's black's turn and
+              their pawn at d5 (we set up the squares manually). *)
+           B.set b 3 4 (Some (B.Colored (B.White, B.Pawn)));
+           B.set b 3 3 (Some (B.Colored (B.Black, B.Pawn)));
+           B.set_en_passant b (Some (2, 4));
+           L.apply_move b L.Black_move (L.Move ((3, 3), (2, 4)));
+           assert_equal
+             (Some (B.Colored (B.Black, B.Pawn)))
+             (B.get b 2 4);
+           assert_equal None (B.get b 3 4);
+           (* en_passant should now be cleared *)
+           assert_equal None (B.get_en_passant b) );
+         ( "regular diagonal capture still works" >:: fun _ ->
+           let b = B.empty () in
+           B.set b 6 4 (Some (B.Colored (B.White, B.Pawn)));
+           B.set b 5 5 (Some (B.Colored (B.Black, B.Knight)));
+           L.apply_move b L.White_move (L.Move ((6, 4), (5, 5)));
+           assert_equal
+             (Some (B.Colored (B.White, B.Pawn)))
+             (B.get b 5 5);
+           assert_equal None (B.get_en_passant b) );
+         ( "double-step blocked by camel doesn't set en_passant" >:: fun _ ->
+           let b = B.empty () in
+           B.set b 6 4 (Some (B.Colored (B.White, B.Pawn)));
+           B.set b 5 4 (Some (B.Neutral B.Camel));
+           let moves = L.valid_moves b 6 4 in
+           assert_bool "no forward at all" (moves = []) );
+         ( "Board.empty has en_passant=None" >:: fun _ ->
+           assert_equal None (B.get_en_passant (B.empty ())) );
+         ( "Board.set_en_passant + get round-trip" >:: fun _ ->
+           let b = B.empty () in
+           B.set_en_passant b (Some (4, 4));
+           assert_equal (Some (4, 4)) (B.get_en_passant b) );
+       ]
+
 let suite =
   "all"
   >::: [
@@ -959,6 +1127,8 @@ let suite =
          apply_move_tests;
          describe_tests;
          castling_tests;
+         promotion_tests;
+         en_passant_tests;
          render_tests;
        ]
 

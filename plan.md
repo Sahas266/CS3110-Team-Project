@@ -25,6 +25,8 @@ A chess variant where a neutral, immortal camel must be relocated each turn.
 - [x] `is_valid_move` — phase match + color ownership + `valid_moves` membership
 - [x] `apply_move` — mutates the board for piece or camel relocation
 - [x] **Castling** (kingside + queenside): `Board.castling` rights record, `get_castling`/`set_castling`, `valid_moves` for King includes castling destinations only when occupancy/rights/check/transit-attack are all clear; `apply_move` moves the rook, clears the rights, blocks `is_attacked` from recursing through castling
+- [x] **En passant**: `Board.get/set_en_passant` tracks the skipped square; pawn double-step sets it, any other piece move clears it, camel relocation preserves it across the moving side's camel phase; pawn `valid_moves` includes the en passant target as a diagonal capture; `apply_move` removes the captured pawn at `(sr, dc)` when the diagonal lands on the target
+- [x] **Pawn promotion**: `pending_promotion` detects a pawn on its promotion rank; `promote_pawn` swaps it for Queen / Rook / Bishop / Knight while preserving color (any other kind coerces to Queen); a new `Promote of Board.kind` command parses `promote q/r/b/n` (or full names); `bin/main.ml` pauses turn advancement until the user picks a piece, syncs the choice to peers in multiplayer
 
 ### UI / rendering (TSDL)
 - [x] Migrated from Notty to TSDL (commits 6d164c8, 2bcdac2)
@@ -91,8 +93,6 @@ A chess variant where a neutral, immortal camel must be relocated each turn.
 >
 > **Corollary:** The king is allowed to move into check (i.e. onto a square attacked by the opponent). It's simply a losing blunder — the opponent captures it next turn — rather than an illegal move. Players are responsible for their own king's safety.
 
-- [ ] Pawn promotion (reach last rank → choose piece)
-- [ ] En passant
 - [ ] Captured-piece tracking
 - [ ] Enforce camel-immortality defensively (today enforced only via `valid_moves` never returning a square occupied by a piece — confirm no path can replace the camel)
 - [ ] Move history + `undo`

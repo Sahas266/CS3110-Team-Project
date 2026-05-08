@@ -111,17 +111,18 @@ type game_mode =
   | Client of Unix.file_descr
 
 type game_state = {
-  board         : Camel_chess.Board.t;
-  input         : string;
-  status        : string;
-  selected      : (int * int) option;
-  targets       : (int * int) list;
-  turn          : Camel_chess.Logic.turn;
-  mode          : game_mode;
-  check         : string;
-  check_squares : (int * int) list;
-  winner        : Camel_chess.Board.color option;
-  recv_buf      : Buffer.t;
+  board             : Camel_chess.Board.t;
+  input             : string;
+  status            : string;
+  selected          : (int * int) option;
+  targets           : (int * int) list;
+  turn              : Camel_chess.Logic.turn;
+  mode              : game_mode;
+  check             : string;
+  check_squares     : (int * int) list;
+  winner            : Camel_chess.Board.color option;
+  recv_buf          : Buffer.t;
+  promotion_pending : (int * int) option;
 }
 
 (* ── Screen ─────────────────────────────────────────────────────────────── *)
@@ -165,7 +166,25 @@ let new_game mode =
   { board; input = ""; status = Camel_chess.Logic.prompt_for turn;
     selected = None; targets = []; turn; mode;
     check = ""; check_squares = []; winner = None;
-    recv_buf = Buffer.create 256 }
+    recv_buf = Buffer.create 256; promotion_pending = None }
+
+let promotion_status () = "Choose promotion: Q, R, B, or N."
+
+(* After a Move/Camel_move/Promote that leaves the board in a normal state,
+   this advances the turn and refreshes derived fields. *)
+let post_move_update gs =
+  match detect_winner gs.board with
+  | Some color ->
+      { gs with selected = None; targets = []; status = "";
+                check = checkmate_message color;
+                check_squares = []; winner = Some color;
+                promotion_pending = None }
+  | None ->
+      let new_turn = Camel_chess.Logic.advance_turn gs.turn in
+      let check, check_squares = compute_check gs.board in
+      { gs with turn = new_turn; selected = None; targets = [];
+                status = Camel_chess.Logic.prompt_for new_turn;
+                check; check_squares; promotion_pending = None }
 
 let is_flipped gs =
   match gs.mode with
@@ -187,55 +206,85 @@ let is_my_turn gs =
 
 let apply_peer_move gs input =
   match Camel_chess.Logic.parse_command input with
+  | Camel_chess.Logic.Promote kind ->
+      (match gs.promotion_pending with
+       | Some sq ->
+           Camel_chess.Logic.promote_pawn gs.board sq kind;
+           post_move_update gs
+       | None -> gs)
   | (Camel_chess.Logic.Move _ | Camel_chess.Logic.Camel_move _) as cmd ->
       (match Camel_chess.Logic.is_valid_move gs.board gs.turn cmd with
        | Ok () ->
            Camel_chess.Logic.apply_move gs.board gs.turn cmd;
-           (match detect_winner gs.board with
-            | Some color ->
-                { gs with check = checkmate_message color;
-                          check_squares = []; winner = Some color;
-                          status = "" }
-            | None ->
-                let new_turn = Camel_chess.Logic.advance_turn gs.turn in
-                let check, check_squares = compute_check gs.board in
-                { gs with turn = new_turn; check; check_squares;
-                          status = Camel_chess.Logic.prompt_for new_turn })
+           (match Camel_chess.Logic.pending_promotion gs.board with
+            | Some sq ->
+                { gs with promotion_pending = Some sq;
+                          status = promotion_status () }
+            | None -> post_move_update gs)
        | Error _ -> gs)
   | _ -> gs
 
+let promotion_kind_of_input s =
+  match String.lowercase_ascii (String.trim s) with
+  | "q" | "queen" | "promote q" | "promote queen" ->
+      Some Camel_chess.Board.Queen
+  | "r" | "rook" | "promote r" | "promote rook" ->
+      Some Camel_chess.Board.Rook
+  | "b" | "bishop" | "promote b" | "promote bishop" ->
+      Some Camel_chess.Board.Bishop
+  | "n" | "knight" | "promote n" | "promote knight" ->
+      Some Camel_chess.Board.Knight
+  | _ -> None
+
 let handle_game_command gs =
-  match Camel_chess.Logic.parse_command gs.input with
-  | Camel_chess.Logic.Valid (row, col) ->
-      let targets = Camel_chess.Logic.valid_moves gs.board row col in
-      { gs with selected = Some (row, col); targets;
-                status = Camel_chess.Logic.describe_valid gs.board row col targets }
-  | (Camel_chess.Logic.Move _ | Camel_chess.Logic.Camel_move _) as cmd ->
-      if not (is_my_turn gs) then
-        { gs with selected = None; targets = []; status = "Wait for your turn." }
-      else
-        (match Camel_chess.Logic.is_valid_move gs.board gs.turn cmd with
-         | Ok () ->
-             Camel_chess.Logic.apply_move gs.board gs.turn cmd;
-             (match gs.mode with
-              | Host fd | Client fd -> send_move fd gs.input
-              | Solo -> ());
-             (match detect_winner gs.board with
-              | Some color ->
-                  { gs with selected = None; targets = []; status = "";
-                            check = checkmate_message color;
-                            check_squares = []; winner = Some color }
-              | None ->
-                  let new_turn = Camel_chess.Logic.advance_turn gs.turn in
-                  let check, check_squares = compute_check gs.board in
-                  { gs with turn = new_turn; selected = None; targets = [];
-                            status = Camel_chess.Logic.prompt_for new_turn;
-                            check; check_squares })
-         | Error msg ->
-             { gs with selected = None; targets = []; status = msg })
-  | _ ->
-      { gs with selected = None; targets = [];
-                status = Camel_chess.Logic.evaluate_input gs.board gs.input }
+  match gs.promotion_pending with
+  | Some sq when is_my_turn gs ->
+      (match promotion_kind_of_input gs.input with
+       | None ->
+           { gs with status = promotion_status () }
+       | Some kind ->
+           Camel_chess.Logic.promote_pawn gs.board sq kind;
+           let kind_letter =
+             match kind with
+             | Camel_chess.Board.Queen -> "q"
+             | Camel_chess.Board.Rook -> "r"
+             | Camel_chess.Board.Bishop -> "b"
+             | Camel_chess.Board.Knight -> "n"
+             | _ -> "q"
+           in
+           (match gs.mode with
+            | Host fd | Client fd -> send_move fd ("promote " ^ kind_letter)
+            | Solo -> ());
+           post_move_update gs)
+  | Some _ ->
+      { gs with status = "Wait for opponent's promotion." }
+  | None ->
+      (match Camel_chess.Logic.parse_command gs.input with
+       | Camel_chess.Logic.Valid (row, col) ->
+           let targets = Camel_chess.Logic.valid_moves gs.board row col in
+           { gs with selected = Some (row, col); targets;
+                     status = Camel_chess.Logic.describe_valid gs.board row col targets }
+       | (Camel_chess.Logic.Move _ | Camel_chess.Logic.Camel_move _) as cmd ->
+           if not (is_my_turn gs) then
+             { gs with selected = None; targets = []; status = "Wait for your turn." }
+           else
+             (match Camel_chess.Logic.is_valid_move gs.board gs.turn cmd with
+              | Ok () ->
+                  Camel_chess.Logic.apply_move gs.board gs.turn cmd;
+                  (match gs.mode with
+                   | Host fd | Client fd -> send_move fd gs.input
+                   | Solo -> ());
+                  (match Camel_chess.Logic.pending_promotion gs.board with
+                   | Some sq ->
+                       { gs with selected = None; targets = [];
+                                 promotion_pending = Some sq;
+                                 status = promotion_status () }
+                   | None -> post_move_update gs)
+              | Error msg ->
+                  { gs with selected = None; targets = []; status = msg })
+       | _ ->
+           { gs with selected = None; targets = [];
+                     status = Camel_chess.Logic.evaluate_input gs.board gs.input })
 
 let report cmd status =
   if String.trim cmd    <> "" then Printf.printf "> %s\n%!" cmd;
@@ -369,6 +418,8 @@ let redraw window view screen =
       Sdl.set_window_title window (clipped_title gs);
       let hint =
         if gs.winner <> None then "TYPE EXIT OR RESTART."
+        else if gs.promotion_pending <> None then
+          "TYPE Q, R, B, OR N AND PRESS ENTER."
         else "ENTER RUNS COMMAND. ESC QUITS."
       in
       Camel_chess.Render.draw ~input:gs.input ~status:gs.status

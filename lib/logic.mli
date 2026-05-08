@@ -12,6 +12,7 @@ type command =
   | Valid of (int * int)
   | Move of (int * int) * (int * int)
   | Camel_move of (int * int)
+  | Promote of Board.kind
   | Unknown
 
 val parse_coordinate : string -> (int * int) option
@@ -67,7 +68,18 @@ val is_valid_move : Board.t -> turn -> command -> (unit, string) result
     - destination is in [valid_moves] of the source (or of the camel) *)
 
 val apply_move : Board.t -> turn -> command -> unit
-(** Mutates [board] to apply the move. Caller is expected to validate first. *)
+(** Mutates [board] to apply the move. Caller is expected to validate first.
+    Updates the en-passant target square: pawn double-steps set it; any other
+    [Move] clears it; [Camel_move] leaves it untouched so en passant remains
+    available across the moving side's camel phase. *)
+
+val pending_promotion : Board.t -> (int * int) option
+(** Square of a pawn currently sitting on its promotion rank, if any. *)
+
+val promote_pawn : Board.t -> int * int -> Board.kind -> unit
+(** Replace the pawn at [(row, col)] with a piece of the same color and the
+    given [kind] (Queen / Rook / Bishop / Knight). No-op if the square does not
+    contain a pawn. *)
 
 val evaluate_input : Board.t -> string -> string
 (** Convert raw user input into a status line response. *)
