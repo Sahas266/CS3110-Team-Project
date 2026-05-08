@@ -1,0 +1,1 @@
+Disclaimer: Some of the OCaml lines of code come from hard-coded implementation of rendering the chess pieces and the text-symbols (e.g. alphabet + numbers) for our GUI. 

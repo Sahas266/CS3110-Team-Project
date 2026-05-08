@@ -37,11 +37,19 @@ val describe_valid : Board.t -> int -> int -> (int * int) list -> string
 (** Status string for the valid-moves display. *)
 
 val turn_color : turn -> Board.color
+(** [turn_color turn] returns the side to act for [turn]. *)
 val advance_turn : turn -> turn
+(** [advance_turn turn] advances from move phase to camel phase, or to the
+    opponent's move phase after camel relocation. *)
 val prompt_for : turn -> string
+(** Prompt text for the current phase shown in the UI. *)
 val turn_label : turn -> string
+(** Short label for display, e.g. whose turn and phase. *)
 val find_camel : Board.t -> (int * int) option
+(** [find_camel board] returns the camel coordinate when present. *)
 val find_king : Board.t -> Board.color -> (int * int) option
+(** [find_king board color] returns [Some (row, col)] for [color]'s king,
+    or [None] if that king is absent. *)
 
 val is_attacked : Board.t -> int * int -> Board.color -> bool
 (** [is_attacked board sq by_color] is true when some piece of [by_color] can

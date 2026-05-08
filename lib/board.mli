@@ -27,6 +27,7 @@ type castling = {
   black_kingside : bool;
   black_queenside : bool;
 }
+(** Castling rights flags for both sides. *)
 
 type t
 (** Abstract board type.
@@ -59,7 +60,9 @@ val is_occupied : t -> int -> int -> bool
   Raises [Invalid_argument] when the coordinate is out of bounds. *)
 
 val get_castling : t -> castling
+(** [get_castling board] returns the current castling rights. *)
 val set_castling : t -> castling -> unit
+(** [set_castling board rights] overwrites castling rights on [board]. *)
 
 val initial : unit -> t
 (** Initial Camel Chess setup.
