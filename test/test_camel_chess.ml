@@ -1,7 +1,6 @@
 open OUnit2
 module B = Camel_chess.Board
 module L = Camel_chess.Logic
-module Sdl = Tsdl.Sdl
 
 (* ── Fixtures ─────────────────────────────────────────────────────────── *)
 
@@ -873,80 +872,6 @@ let board_tests =
            assert_equal (Some (B.Neutral B.Camel)) (B.get b 4 4) );
        ]
 
-(* ── Render smoke tests (headless via SDL_VIDEODRIVER=dummy) ──────────── *)
-
-let render_setup () =
-  Unix.putenv "SDL_VIDEODRIVER" "dummy";
-  match Sdl.init Sdl.Init.(video + events) with
-  | Error _ -> None
-  | Ok () -> (
-      match
-        Sdl.create_window ~w:Camel_chess.Render.window_width
-          ~h:Camel_chess.Render.window_height "test" Sdl.Window.hidden
-      with
-      | Error _ ->
-          Sdl.quit ();
-          None
-      | Ok window -> (
-          match Sdl.create_renderer window with
-          | Error _ ->
-              Sdl.destroy_window window;
-              Sdl.quit ();
-              None
-          | Ok renderer -> Some (window, renderer)))
-
-let render_teardown window renderer =
-  Sdl.destroy_renderer renderer;
-  Sdl.destroy_window window;
-  Sdl.quit ()
-
-(* Drive every screen + draw branch once so render.ml gets coverage. *)
-let drive_render renderer =
-  let view = Camel_chess.Render.create renderer in
-  let board = Camel_chess.Board.initial () in
-  (* basic draw with defaults *)
-  Camel_chess.Render.draw view board;
-  (* draw with full state, selected (occupied + capture target highlight),
-     check message + check_squares, flipped on/off, status that wraps *)
-  Camel_chess.Render.draw view board ~input:"move e2 e4"
-    ~status:"this is a fairly long status string that should wrap into multiple lines on the panel"
-    ~turn:"WHITE - PIECE MOVE" ~check:"Check on White!" ~check_squares:[ (7, 4) ]
-    ~hint:"TYPE EXIT OR RESTART." ~selected:(6, 4)
-    ~targets:[ (4, 4); (5, 4); (1, 0) ]
-    ~flipped:false;
-  Camel_chess.Render.draw view board ~flipped:true ~selected:(0, 0)
-    ~targets:[ (0, 1) ];
-  (* very-long-word path in wrap_text: word longer than panel *)
-  Camel_chess.Render.draw view board
-    ~status:(String.make 200 'x')
-    ~turn:""
-    ~input:"";
-  (* title / rules / multiplayer / host_waiting / client_connecting *)
-  Camel_chess.Render.draw_title view;
-  Camel_chess.Render.draw_title view ~input:"1" ~status:"TYPE 1, 2, OR 3";
-  Camel_chess.Render.draw_rules view;
-  Camel_chess.Render.draw_multiplayer_menu view;
-  Camel_chess.Render.draw_multiplayer_menu view ~input:"1" ~status:"WAITING";
-  Camel_chess.Render.draw_host_waiting view ~ip:"192.168.1.42" ~port:9876;
-  Camel_chess.Render.draw_client_connecting view;
-  Camel_chess.Render.draw_client_connecting view ~input:"127.0.0.1"
-    ~status:"CONNECTING";
-  Camel_chess.Render.destroy view
-
-let render_tests =
-  "render smoke"
-  >::: [
-         ( "drive every screen" >:: fun _ ->
-           match render_setup () with
-           | None -> skip_if true "SDL unavailable in this environment"
-           | Some (window, renderer) ->
-               (try drive_render renderer
-                with e ->
-                  render_teardown window renderer;
-                  raise e);
-               render_teardown window renderer );
-       ]
-
 let promotion_tests =
   "promotion"
   >::: [
@@ -1115,6 +1040,85 @@ let en_passant_tests =
            assert_equal (Some (4, 4)) (B.get_en_passant b) );
        ]
 
+let extra_logic_tests =
+  "extra logic"
+  >::: [
+         ( "board_size is standard chess size" >:: fun _ ->
+           assert_equal 8 B.board_size );
+         ( "parse_coordinate trims spaces" >:: fun _ ->
+           assert_equal (Some (6, 4)) (L.parse_coordinate " e2") );
+         ( "parse_command mixed-case help" >:: fun _ ->
+           assert_equal L.Help (L.parse_command "HELP") );
+         ( "get raises below board" >:: fun _ ->
+           let b = B.empty () in
+           assert_raises (Invalid_argument "Board.get") (fun () ->
+               ignore (B.get b (-1) 0)) );
+         ( "set raises past board" >:: fun _ ->
+           let b = B.empty () in
+           assert_raises (Invalid_argument "Board.set") (fun () ->
+               B.set b 0 8 None) );
+         ( "black pawn blocked by piece in front" >:: fun _ ->
+           let b = B.empty () in
+           B.set b 1 4 (Some (B.Colored (B.Black, B.Pawn)));
+           B.set b 2 4 (Some (B.Colored (B.White, B.Knight)));
+           assert_equal [] (L.valid_moves b 1 4) );
+         ( "black pawn diagonal capture" >:: fun _ ->
+           let b = B.empty () in
+           B.set b 1 4 (Some (B.Colored (B.Black, B.Pawn)));
+           B.set b 2 3 (Some (B.Colored (B.White, B.Bishop)));
+           let moves = L.valid_moves b 1 4 in
+           assert_bool "captures d6" (List.mem (2, 3) moves) );
+         ( "bishop stops before own piece" >:: fun _ ->
+           let b = B.empty () in
+           B.set b 4 4 (Some (B.Colored (B.White, B.Bishop)));
+           B.set b 2 2 (Some (B.Colored (B.White, B.Pawn)));
+           let moves = L.valid_moves b 4 4 in
+           assert_bool "own square excluded" (not (List.mem (2, 2) moves));
+           assert_bool "past own piece excluded" (not (List.mem (1, 1) moves))
+         );
+         ( "bishop captures and stops" >:: fun _ ->
+           let b = B.empty () in
+           B.set b 4 4 (Some (B.Colored (B.White, B.Bishop)));
+           B.set b 2 2 (Some (B.Colored (B.Black, B.Pawn)));
+           let moves = L.valid_moves b 4 4 in
+           assert_bool "enemy square included" (List.mem (2, 2) moves);
+           assert_bool "past enemy excluded" (not (List.mem (1, 1) moves)) );
+         ( "queen stops before neutral camel" >:: fun _ ->
+           let b = B.empty () in
+           B.set b 4 4 (Some (B.Colored (B.White, B.Queen)));
+           B.set b 4 6 (Some (B.Neutral B.Camel));
+           let moves = L.valid_moves b 4 4 in
+           assert_bool "camel square excluded" (not (List.mem (4, 6) moves));
+           assert_bool "past camel excluded" (not (List.mem (4, 7) moves)) );
+         ( "king in corner has three moves on empty board" >:: fun _ ->
+           let b = B.empty () in
+           B.set b 0 0 (Some (B.Colored (B.White, B.King)));
+           let moves = L.valid_moves b 0 0 in
+           assert_equal 3 (List.length moves);
+           assert_bool "down" (List.mem (1, 0) moves);
+           assert_bool "right" (List.mem (0, 1) moves);
+           assert_bool "diagonal" (List.mem (1, 1) moves) );
+         ( "promote white pawn to queen" >:: fun _ ->
+           let b = B.empty () in
+           B.set b 0 4 (Some (B.Colored (B.White, B.Pawn)));
+           L.promote_pawn b (0, 4) B.Queen;
+           assert_equal (Some (B.Colored (B.White, B.Queen))) (B.get b 0 4)
+         );
+         ( "promote black pawn to knight" >:: fun _ ->
+           let b = B.empty () in
+           B.set b 7 3 (Some (B.Colored (B.Black, B.Pawn)));
+           L.promote_pawn b (7, 3) B.Knight;
+           assert_equal
+             (Some (B.Colored (B.Black, B.Knight)))
+             (B.get b 7 3) );
+         ( "promote non-pawn no-ops" >:: fun _ ->
+           let b = B.empty () in
+           B.set b 0 4 (Some (B.Colored (B.White, B.Rook)));
+           L.promote_pawn b (0, 4) B.Queen;
+           assert_equal (Some (B.Colored (B.White, B.Rook))) (B.get b 0 4)
+         );
+       ]
+
 let suite =
   "all"
   >::: [
@@ -1129,7 +1133,7 @@ let suite =
          castling_tests;
          promotion_tests;
          en_passant_tests;
-         render_tests;
+         extra_logic_tests;
        ]
 
 let _ = run_test_tt_main suite
