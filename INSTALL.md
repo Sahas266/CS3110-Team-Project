@@ -68,7 +68,7 @@ $ opam install -y tsdl
 ```
 
 # Testing the Project
-We are currently displaying the graphics in the terminal, so you can run this command to check out our progress!
+You can run this command to check out the GUI and functionality for our project:
 
 ```text
 $ dune exec bin/main.exe
